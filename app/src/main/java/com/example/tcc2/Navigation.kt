@@ -31,6 +31,8 @@ fun Navigation() {
         composable("MainScreen") {
             MainScreen(navController)
         }
-        composable("DNSScreen") { DNSScreen() }
+        composable("DNSScreen") {
+            DNSScreen()
+        }
     }
 }

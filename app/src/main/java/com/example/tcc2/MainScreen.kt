@@ -1,6 +1,8 @@
 package com.example.tcc2
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -10,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 
@@ -27,8 +30,20 @@ fun MainScreen(navController: NavHostController) {
                 .padding(padding),
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
-            Button(onClick = { navController.navigate("DNSScreen") }) {
-                Text(text = "DNS", fontSize = 18.sp)
+            Column(
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(onClick = { navController.navigate("DNSScreen") }) {
+                    Text(text = "DNS", fontSize = 18.sp)
+                }
+                Button(onClick = {  }) {
+                    Text(text = "Teste de Velocidade", fontSize = 18.sp)
+                }
+                Button(onClick = {  })
+                {
+                    Text(text = "Redes Próximas (dB)", fontSize = 18.sp)
+                }
             }
         }
     }
