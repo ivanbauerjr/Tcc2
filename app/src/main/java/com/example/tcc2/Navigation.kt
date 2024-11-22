@@ -1,6 +1,8 @@
 package com.example.tcc2
 
 import DNSScreen
+import RedesProximasScreen
+import TestedeVelocidadeScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,6 +35,12 @@ fun Navigation() {
         }
         composable("DNSScreen") {
             DNSScreen()
+        }
+        composable("TestedeVelocidadeScreen") {
+            TestedeVelocidadeScreen()
+        }
+        composable("RedesProximasScreen") {
+            RedesProximasScreen()
         }
     }
 }

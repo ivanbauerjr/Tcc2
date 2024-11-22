@@ -37,10 +37,10 @@ fun MainScreen(navController: NavHostController) {
                 Button(onClick = { navController.navigate("DNSScreen") }) {
                     Text(text = "DNS", fontSize = 18.sp)
                 }
-                Button(onClick = {  }) {
+                Button(onClick = { navController.navigate("TestedeVelocidadeScreen") }) {
                     Text(text = "Teste de Velocidade", fontSize = 18.sp)
                 }
-                Button(onClick = {  })
+                Button(onClick = { navController.navigate("RedesProximasScreen") })
                 {
                     Text(text = "Redes Próximas (dB)", fontSize = 18.sp)
                 }
