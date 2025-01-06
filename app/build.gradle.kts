@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.tcc2"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.tcc2"
@@ -57,5 +57,5 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation("dnsjava:dnsjava:3.5.2")
+    implementation("dnsjava:dnsjava:3.6.2")
 }
