@@ -1,33 +1,34 @@
 package com.example.tcc2
 
 import DNSScreen
-import TestedeVelocidadeScreen
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 
-
-//enum class Screen {
-//    Main,
-//    DNS
-//}
-
 @Composable
-fun Navigation() {
+fun Navigation(
+    onGetUserLocation: (callback: (Double, Double) -> Unit) -> Unit
+) {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
         startDestination = "MainScreen"
     ) {
         composable("MainScreen") {
-            MainScreen(navController)
+            MainScreen(
+                navController = navController,
+                onGetUserLocation = onGetUserLocation
+            )
         }
         composable("DNSScreen") {
             DNSScreen()
         }
         composable("TestedeVelocidadeScreen") {
-            TestedeVelocidadeScreen()
+            TestedeVelocidadeScreen(
+                onGetUserLocation = onGetUserLocation
+
+            )
         }
         composable("RedesProximasScreen") {
             RedesProximasScreen()

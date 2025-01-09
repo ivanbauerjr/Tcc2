@@ -16,6 +16,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
     buildTypes {
@@ -57,5 +60,20 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // DNS
     implementation("dnsjava:dnsjava:3.6.2")
+
+    // Networking: OkHttp
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
+
+    // HTML Parsing: Jsoup
+    implementation("org.jsoup:jsoup:1.15.4")
+
+    // Coroutines for Kotlin
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+
+    // Google Maps Utils for distance calculations
+    implementation("com.google.maps.android:android-maps-utils:2.3.0")
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
 }
