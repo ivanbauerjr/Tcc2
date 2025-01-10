@@ -11,14 +11,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +49,9 @@ fun MainScreen(
                 Button(onClick = { navController.navigate("TestedeVelocidadeScreen") }) {
                     Text(text = "Teste de Velocidade", fontSize = 18.sp)
                 }
+                Button(onClick = { navController.navigate("TestedeVelocidadeScreen2") }) {
+                    Text(text = "Teste de Velocidade2", fontSize = 18.sp)
+                }
                 Button(onClick = { navController.navigate("RedesProximasScreen") }) {
                     Text(text = "Redes Próximas (dB)", fontSize = 18.sp)
                 }
@@ -61,6 +64,10 @@ fun MainScreen(
                 }
                 userLocation?.let { (latitude, longitude) ->
                     Text(text = "Latitude: $latitude, Longitude: $longitude", fontSize = 16.sp)
+                }
+                Button(onClick = { navController.navigate("RoteadorScreen") })
+                {
+                    Text(text = "Verificação das configurações de roteador", fontSize = 18.sp)
                 }
             }
         }
