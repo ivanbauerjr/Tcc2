@@ -1,12 +1,15 @@
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
+import android.net.wifi.WifiInfo
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +56,7 @@ fun RoteadorScreen() {
                 // Se a conexão for Wi-Fi, obter informações de SSID
                 if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
                     ssid = getWifiSSID(context) ?: "Desconhecido"
+
                 }
             }
 
@@ -109,20 +113,51 @@ fun openRouterPage(context: Context, gateway: String) {
     }
 }
 
-@SuppressLint("NewApi")
-fun getWifiSSID(context: Context): String? {
-    val connectivityManager =
-        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val activeNetwork: Network? = connectivityManager.activeNetwork
-    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+//@SuppressLint("NewApi")
+//fun getWifiSSID(context: Context): String? {
+//    val connectivityManager =
+//        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+//    val activeNetwork: Network? = connectivityManager.activeNetwork
+//    val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+//
+//    return if (networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+//        val wifiInfo = networkCapabilities.transportInfo as? android.net.wifi.WifiInfo
+//        wifiInfo?.ssid?.removePrefix("\"")?.removeSuffix("\"") // Remove as aspas
+//    } else {
+//        null
+//    }
+//}
 
-    return if (networkCapabilities != null && networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-        val wifiInfo = networkCapabilities.transportInfo as? android.net.wifi.WifiInfo
-        wifiInfo?.ssid?.removePrefix("\"")?.removeSuffix("\"") // Remove as aspas
-    } else {
-        null
+fun getWifiSSID(context: Context): String? {
+    val ssidList = mutableListOf<String>()
+    val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+
+    val request = NetworkRequest.Builder()
+        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+        .build()
+
+    val networkCallback = @RequiresApi(Build.VERSION_CODES.S)
+    object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
+        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            val wifiInfo = networkCapabilities.transportInfo as WifiInfo
+            ssidList.add(wifiInfo.ssid)
+            connectivityManager.unregisterNetworkCallback(this)
+        }
     }
+
+    connectivityManager.requestNetwork(request, networkCallback)
+    connectivityManager.registerNetworkCallback(request, networkCallback)
+
+    repeat(20) { // Espera 5 segundos no total (20 x 250ms)
+        if (ssidList.isNotEmpty()) return ssidList.first()
+        Thread.sleep(250)
+    }
+
+    connectivityManager.unregisterNetworkCallback(networkCallback)
+    return null
 }
+
+
 
 fun isHostReachable(host: String): Boolean {
     return try {
