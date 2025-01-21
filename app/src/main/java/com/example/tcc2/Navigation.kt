@@ -4,6 +4,7 @@ import DNSScreen
 import RoteadorScreen
 import TestedeVelocidadeScreen2
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -28,8 +29,9 @@ fun Navigation(
         }
         composable("TestedeVelocidadeScreen") {
             TestedeVelocidadeScreen(
-                onGetUserLocation = onGetUserLocation
-
+                onGetUserLocation = onGetUserLocation,
+                modifier = Modifier,
+                navController = navController
             )
         }
         composable("TestedeVelocidadeScreen2") {
@@ -40,6 +42,9 @@ fun Navigation(
         }
         composable("RoteadorScreen") {
             RoteadorScreen()
+        }
+        composable("HistoricoVelocidadeScreen") {
+            HistoricoVelocidadeScreen()
         }
     }
 }

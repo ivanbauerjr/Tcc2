@@ -76,4 +76,6 @@ dependencies {
     implementation("com.google.maps.android:android-maps-utils:2.3.0")
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+
+    implementation ("com.google.code.gson:gson:2.10.1")
 }

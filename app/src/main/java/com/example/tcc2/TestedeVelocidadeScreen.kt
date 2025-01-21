@@ -1,12 +1,41 @@
 package com.example.tcc2
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.*
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.tcc2.models.Server
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 import java.math.BigDecimal
@@ -15,11 +44,51 @@ import java.net.HttpURLConnection
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLSocketFactory
-import kotlin.math.*
-import com.example.tcc2.models.Server
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+data class TestResult(
+    val ping: String,
+    val downloadSpeed: String,
+    val uploadSpeed: String,
+    val timestamp: String
+)
+
+class TestResultManager(context: Context) {
+    private val sharedPreferences: SharedPreferences = context.getSharedPreferences("test_results", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    // Chave para armazenar os resultados dos testes
+    private val resultsKey = "test_results_key"
+
+    // Função para salvar os resultados
+    fun saveTestResult(testResult: TestResult) {
+        // Obter os resultados antigos
+        val currentResults = getTestResults().toMutableList()
+
+        // Adicionar o novo resultado
+        currentResults.add(0, testResult)  // Adiciona no início da lista
+
+        // Manter apenas os últimos 10 resultados
+        if (currentResults.size > 10) {
+            currentResults.removeAt(currentResults.size - 1)  // Remove o resultado mais antigo
+        }
+
+        // Salvar a lista no SharedPreferences como uma string JSON
+        val json = gson.toJson(currentResults)
+        sharedPreferences.edit().putString(resultsKey, json).apply()
+    }
+
+    // Função para obter os últimos 10 resultados
+    fun getTestResults(): List<TestResult> {
+        val json = sharedPreferences.getString(resultsKey, "[]")
+        val type = object : TypeToken<List<TestResult>>() {}.type
+        return gson.fromJson(json, type)
+    }
+}
 
 @Composable
 fun ServerSelectionDialog(
@@ -52,136 +121,6 @@ fun ServerSelectionDialog(
             }
         }
     )
-}
-
-
-
-@Composable
-fun TestedeVelocidadeScreen(
-    modifier: Modifier = Modifier,
-    onGetUserLocation: ((Double, Double) -> Unit) -> Unit
-) {
-    var resultText by remember { mutableStateOf("Click the button to start testing!") }
-    var isTestRunning by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
-    var userLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
-    var closestServer by remember { mutableStateOf<Server?>(null) }
-    var availableServers by remember { mutableStateOf<List<Server>>(emptyList()) }
-    var isServerDialogVisible by remember { mutableStateOf(false) }
-
-    // Fetch user location
-    LaunchedEffect(Unit) {
-        onGetUserLocation { lat, lon ->
-            userLocation = Pair(lat, lon)
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Top
-    ) {
-        Text(
-            text = "Location: ${
-                userLocation?.let { "${it.first}, ${it.second}" } ?: "Fetching..."
-            }",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Button(
-            onClick = {
-                if (userLocation != null) {
-                    coroutineScope.launch {
-                        isTestRunning = true
-                        resultText = "Fetching servers and measuring latency..."
-                        val servers = fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
-                        availableServers = servers.take(10) // Show the 10 best servers by latency
-                        isTestRunning = false
-                    }
-                } else {
-                    resultText = "Error: Unable to fetch user location."
-                }
-            },
-            enabled = userLocation != null && !isTestRunning
-        ) {
-            Text(text = "Fetch Servers with Latency")
-        }
-
-
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (closestServer != null) {
-            Text(
-                text = "Closest Server: ${closestServer?.name} (${closestServer?.sponsor})\nDistance: ${round(closestServer?.distance ?: 0.0, 2)} km\nURL: ${closestServer?.url}",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
-        Button(
-            onClick = { isServerDialogVisible = true },
-            enabled = availableServers.isNotEmpty()
-        ) {
-            Text("Select Server")
-        }
-
-        if (isServerDialogVisible) {
-            ServerSelectionDialog(
-                servers = availableServers,
-                onServerSelected = { server ->
-                    closestServer = server
-                    resultText = "Selected Server: ${server.name} (${server.sponsor})"
-                },
-                onDismissRequest = { isServerDialogVisible = false }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        closestServer?.let { server ->
-            Text(
-                text = resultText,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    if (!isTestRunning) {
-                        isTestRunning = true
-                        resultText = "Testing..."
-                        progress = 0f
-                        coroutineScope.launch {
-                            val pingResult = performPing("8.8.8.8")
-                            val downloadSpeedResult = measureDownloadSpeed(server.url) { currentProgress ->
-                                progress = currentProgress
-                            }
-                            val uploadSpeedResult = measureUploadSpeed(server.url) { currentProgress ->
-                                progress = 0.5f + (currentProgress / 2f) // Continue progress after download
-                            }
-                            resultText = "Ping: $pingResult\nDownload: $downloadSpeedResult\nUpload: $uploadSpeedResult"
-                            progress = 1f
-                            isTestRunning = false
-                        }
-                    }
-                },
-                enabled = !isTestRunning
-            ) {
-                Text(text = if (isTestRunning) "Testing..." else "Start Test")
-            }
-        }
-    }
 }
 
 suspend fun performPing(hostname: String): String {
@@ -393,5 +332,202 @@ fun round(value: Double, places: Int): Double {
         BigDecimal(value).setScale(places, RoundingMode.HALF_UP).toDouble()
     } catch (ex: Exception) {
         0.0
+    }
+}
+
+@Composable
+fun TestedeVelocidadeScreen(
+    modifier: Modifier = Modifier,
+    onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
+    navController: NavController
+) {
+    var resultText by remember { mutableStateOf("Click the button to start testing!") }
+    var isTestRunning by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    var userLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var closestServer by remember { mutableStateOf<Server?>(null) }
+    var availableServers by remember { mutableStateOf<List<Server>>(emptyList()) }
+    var isServerDialogVisible by remember { mutableStateOf(false) }
+
+    // Lista para armazenar os últimos 10 resultados
+    var testResults by remember { mutableStateOf<List<TestResult>>(emptyList()) }
+
+    // Inicializando o TestResultManager
+    val testResultManager = TestResultManager(LocalContext.current)
+
+    // Fetch user location
+    LaunchedEffect(Unit) {
+        onGetUserLocation { lat, lon ->
+            userLocation = Pair(lat, lon)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Top
+    ) {
+        Text(
+            text = "Location: ${
+                userLocation?.let { "${it.first}, ${it.second}" } ?: "Fetching..."
+            }",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Button(
+            onClick = {
+                if (userLocation != null) {
+                    coroutineScope.launch {
+                        isTestRunning = true
+                        resultText = "Fetching servers and measuring latency..."
+                        val servers =
+                            fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
+                        availableServers = servers.take(10) // Show the 10 best servers by latency
+                        isTestRunning = false
+                    }
+                } else {
+                    resultText = "Error: Unable to fetch user location."
+                }
+            },
+            enabled = userLocation != null && !isTestRunning
+        ) {
+            Text(text = "Fetch Servers with Latency")
+        }
+
+
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (closestServer != null) {
+            Text(
+                text = "Closest Server: ${closestServer?.name} (${closestServer?.sponsor})\nDistance: ${
+                    round(
+                        closestServer?.distance ?: 0.0,
+                        2
+                    )
+                } km\nURL: ${closestServer?.url}",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        Button(
+            onClick = { isServerDialogVisible = true },
+            enabled = availableServers.isNotEmpty()
+        ) {
+            Text("Select Server")
+        }
+
+        if (isServerDialogVisible) {
+            ServerSelectionDialog(
+                servers = availableServers,
+                onServerSelected = { server ->
+                    closestServer = server
+                    resultText = "Selected Server: ${server.name} (${server.sponsor})"
+                },
+                onDismissRequest = { isServerDialogVisible = false }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        closestServer?.let { server ->
+            Text(
+                text = resultText,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    if (!isTestRunning) {
+                        isTestRunning = true
+                        resultText = "Testing..."
+                        progress = 0f
+                        coroutineScope.launch {
+                            val pingResult = performPing("8.8.8.8")
+                            val downloadSpeedResult =
+                                measureDownloadSpeed(server.url) { currentProgress ->
+                                    progress = currentProgress
+                                }
+                            val uploadSpeedResult =
+                                measureUploadSpeed(server.url) { currentProgress ->
+                                    progress =
+                                        0.5f + (currentProgress / 2f) // Continue progress after download
+                                }
+                            resultText =
+                                "Ping: $pingResult\nDownload: $downloadSpeedResult\nUpload: $uploadSpeedResult"
+                            progress = 1f
+                            isTestRunning = false
+
+                            // Adiciona o resultado à lista de testes
+                            val newResult = TestResult(
+                                ping = pingResult,
+                                downloadSpeed = downloadSpeedResult,
+                                uploadSpeed = uploadSpeedResult,
+                                timestamp = System.currentTimeMillis().toString()
+                            )
+                            // Salvando o resultado
+                            testResultManager.saveTestResult(newResult)
+                        }
+                    }
+                },
+                enabled = !isTestRunning
+            ) {
+                Text(text = if (isTestRunning) "Testing..." else "Start Test")
+            }
+        }
+        // Botão para exibir o histórico de até 10 resultados anteriores
+        Button(onClick = { navController.navigate("HistoricoVelocidadeScreen") }) {
+            Text(text = "Histórico de Testes", fontSize = 18.sp)
+        }
+    }
+}
+
+@Composable
+fun HistoricoVelocidadeScreen() {
+    // Instanciando o TestResultManager
+    val testResultManager = TestResultManager(context = LocalContext.current)
+
+    // Estado para armazenar os resultados para exibição
+    var results = remember { testResultManager.getTestResults() }
+
+    // Estado para controle do Toast
+    val context = LocalContext.current
+    var showToast by remember { mutableStateOf(false) }
+
+    // Layout com o botão e o Text
+    Column(modifier = Modifier.padding(16.dp)) {
+
+        // Botão para limpar o histórico
+        Button(onClick = {
+            // Limpa o histórico
+            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
+            // Atualiza a lista de resultados
+            results = testResultManager.getTestResults()
+            // Exibe o Toast
+            showToast = true
+        }) {
+            Text("Limpar Histórico")
+        }
+
+        // Exibindo os resultados no Compose
+        if (results.isEmpty()) {
+            Text("Nenhum resultado disponível")
+        } else {
+            results.forEach { result ->
+                Text("Ping: ${result.ping} ms, Download: ${result.downloadSpeed} Mbps, Upload: ${result.uploadSpeed} Mbps, Timestamp: ${result.timestamp}")
+            }
+        }
     }
 }
