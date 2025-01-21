@@ -52,7 +52,7 @@ fun RedesProximasScreen() {
         modifier = Modifier.padding(16.dp)
     ) {
         Text(
-            text = "Redes Wi-Fi Disponíveis",
+            text = "Redes Wi-Fi Próximas",
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(bottom = 16.dp)
         )

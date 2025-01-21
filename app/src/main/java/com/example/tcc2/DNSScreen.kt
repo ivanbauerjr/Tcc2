@@ -1,10 +1,8 @@
-import android.annotation.SuppressLint
+
 import android.content.Context
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -27,11 +26,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.net.InetAddress
 import java.net.UnknownHostException
-import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,14 +49,21 @@ fun DNSScreen() {
     // Estado para armazenar o DNS ativo
     var activeDNS by remember { mutableStateOf("") }
     // Obter o DNS ativo quando a tela for carregada
+    var comparisonMessage by remember { mutableStateOf("") } // Mensagem de comparação
+
     LaunchedEffect(Unit) {
-        activeDNS = getActiveDNS(context)
+        activeDNS = getActiveDNS(context).replace("/", "")
     }
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Resolução de DNS") })
+            TopAppBar(title = { Text(
+                "Resolução de DNS",
+                fontSize = 35.sp,
+                style = MaterialTheme.typography.titleLarge)
+            })
         }
-    ) { padding ->
+    )
+    { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -62,11 +71,22 @@ fun DNSScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Exibição do DNS ativo
+            Text(
+                text = "DNS ativo: $activeDNS",
+                fontSize = 22.sp,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            //Spacer(modifier = Modifier.height(10.dp))
+
             // Campo de entrada para o domínio
             TextField(
                 value = domain,
                 onValueChange = { domain = it },
-                label = { Text("Digite o domínio") },
+                label = { Text("Digite o domínio", fontSize = 16.sp) },
+                textStyle = TextStyle(fontSize = 20.sp), // Define o tamanho da fonte do texto digitado
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -86,27 +106,55 @@ fun DNSScreen() {
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = domain.text.isNotBlank() && !isLoading
-            ) {
+            )
+            {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
-                    Text("Resolver DNS")
+                    Text("Resolver DNS", fontSize = 24.sp)
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Exibição do resultado
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Resultado utilizando o DNS ativo:", fontSize = 23.sp)
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = result, fontSize = 22.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Resultado utilizando usando o DNS da Cloudflare (1.1.1.1):",
+                    fontSize = 23.sp
+                )
+            }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Text(text = resultCloudflareDNS, fontSize = 22.sp)
+            }
+
+            if (result.isNotEmpty() && resultCloudflareDNS.isNotEmpty()) {
+                // Comparação entre os resultados
+                comparisonMessage = if (result == resultCloudflareDNS) {
+                    "   O retorno com o DNS configurado no dispositivo é igual ao retornado pelo DNS da Cloudflare (1.1.1.1). Portanto, o DNS parece estar funcionando corretamente."
+                } else {
+                    "   Os resultados do DNS configurado no dispositivo e do DNS da Cloudflare (1.1.1.1) são diferentes. Pode haver algo errado com o DNS configurado no dispositivo."
                 }
             }
 
-            // Exibição do resultado
-            Text(text = "Resultado para o domínio ${domain.text}:")
-            // Exibição do DNS ativo
-            Text(
-                text = "DNS ativo: $activeDNS",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(text = result)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(25.dp))
 
-            Text(text = "Resultado usando o DNS 1.1.1.1:")
-            Text(text = resultCloudflareDNS)
+            // Mensagem de comparação
+            Text(
+                text = comparisonMessage,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 22.sp,
+                color = if (result == resultCloudflareDNS) Color(0xFF00AA00) else Color.Red
+            )
+
         }
     }
 }
@@ -116,7 +164,8 @@ fun resolveUsingCloudflareDNS(domain: String, callback: (result: String) -> Unit
     Thread {
         try {
             val address = InetAddress.getByName(domain) // Resolve o nome de domínio
-            callback("Resolução bem-sucedida para $domain: ${address.hostAddress}")
+            //callback("Resolução bem-sucedida para $domain: ${address.hostAddress}")
+            callback(address.hostAddress)
         } catch (e: UnknownHostException) {
             callback("Erro ao resolver $domain com 1.1.1.1: ${e.message}")
         } catch (e: Exception) {
@@ -129,7 +178,8 @@ fun resolveDNS(domain: String, callback: (result: String) -> Unit) {
     Thread {
         try {
             val address = InetAddress.getByName(domain)
-            callback("Resolução bem-sucedida: $domain -> ${address.hostAddress}")
+            //callback("Resolução bem-sucedida: $domain -> ${address.hostAddress}")
+            callback(address.hostAddress)
         } catch (e: Exception) {
             callback("Erro ao resolver $domain: ${e.message}")
         }
