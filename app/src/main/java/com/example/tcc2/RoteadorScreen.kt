@@ -88,11 +88,13 @@ fun RoteadorScreen() {
         }
     }
 
+
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
         // Exibir as informações do roteador
@@ -103,10 +105,12 @@ fun RoteadorScreen() {
             Text(
                 text = "Configurações do Roteador",
                 fontSize = 35.sp,
-                style = MaterialTheme.typography.titleLarge)
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 16.dp)  // Adiciona um espaço acima do texto
+            )
         }
 
-        Spacer(modifier = Modifier.height(50.dp))
+        Spacer(modifier = Modifier.height(60.dp))
 
 
         Text(
@@ -115,12 +119,13 @@ fun RoteadorScreen() {
         )
 
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         Text(
             text = "Gateway:",
             fontSize = 22.sp
         )
+        Spacer(modifier = Modifier.height(4.dp))
         // Endereço IPv4
         Text(
             text = "Endereço IPv4: $gatewayIpv4",
@@ -137,7 +142,7 @@ fun RoteadorScreen() {
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(start = 18.dp)
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         Text(
             text = "Status da Conexão: $connectionStatus",
