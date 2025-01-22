@@ -3,6 +3,7 @@ package com.example.tcc2
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,8 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,8 +27,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -42,6 +48,9 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLSocketFactory
 import kotlin.math.atan2
@@ -49,6 +58,7 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
+
 
 data class TestResult(
     val ping: String,
@@ -58,7 +68,8 @@ data class TestResult(
 )
 
 class TestResultManager(context: Context) {
-    private val sharedPreferences: SharedPreferences = context.getSharedPreferences("test_results", Context.MODE_PRIVATE)
+    private val sharedPreferences: SharedPreferences =
+        context.getSharedPreferences("test_results", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     // Chave para armazenar os resultados dos testes
@@ -72,8 +83,8 @@ class TestResultManager(context: Context) {
         // Adicionar o novo resultado
         currentResults.add(0, testResult)  // Adiciona no início da lista
 
-        // Manter apenas os últimos 10 resultados
-        if (currentResults.size > 10) {
+        // Manter apenas os últimos n resultados
+        if (currentResults.size > 20) {
             currentResults.removeAt(currentResults.size - 1)  // Remove o resultado mais antigo
         }
 
@@ -87,6 +98,16 @@ class TestResultManager(context: Context) {
         val json = sharedPreferences.getString(resultsKey, "[]")
         val type = object : TypeToken<List<TestResult>>() {}.type
         return gson.fromJson(json, type)
+    }
+}
+
+fun formatTimestamp(timestamp: String): String {
+    return try {
+        val date = Date(timestamp.toLong())
+        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        formatter.format(date)
+    } catch (e: Exception) {
+        "Invalid Timestamp"
     }
 }
 
@@ -336,6 +357,11 @@ fun round(value: Double, places: Int): Double {
 }
 
 @Composable
+fun Box(modifier: Modifier, content: @Composable () -> Unit) {
+
+}
+
+@Composable
 fun TestedeVelocidadeScreen(
     modifier: Modifier = Modifier,
     onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
@@ -385,7 +411,8 @@ fun TestedeVelocidadeScreen(
                         resultText = "Fetching servers and measuring latency..."
                         val servers =
                             fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
-                        availableServers = servers.take(10) // Show the 10 best servers by latency
+                        availableServers =
+                            servers.take(10) // Show the 10 best servers by latency
                         isTestRunning = false
                     }
                 } else {
@@ -394,7 +421,7 @@ fun TestedeVelocidadeScreen(
             },
             enabled = userLocation != null && !isTestRunning
         ) {
-            Text(text = "Fetch Servers with Latency")
+            Text(text = "Fetch Servers with Latency", fontSize = 18.sp)
         }
 
 
@@ -418,7 +445,7 @@ fun TestedeVelocidadeScreen(
             onClick = { isServerDialogVisible = true },
             enabled = availableServers.isNotEmpty()
         ) {
-            Text("Select Server")
+            Text("Select Server", fontSize = 18.sp)
         }
 
         if (isServerDialogVisible) {
@@ -475,7 +502,9 @@ fun TestedeVelocidadeScreen(
                                 ping = pingResult,
                                 downloadSpeed = downloadSpeedResult,
                                 uploadSpeed = uploadSpeedResult,
-                                timestamp = System.currentTimeMillis().toString()
+                                timestamp = formatTimestamp(
+                                    System.currentTimeMillis().toString()
+                                )
                             )
                             // Salvando o resultado
                             testResultManager.saveTestResult(newResult)
@@ -484,50 +513,96 @@ fun TestedeVelocidadeScreen(
                 },
                 enabled = !isTestRunning
             ) {
-                Text(text = if (isTestRunning) "Testing..." else "Start Test")
+                Text(text = if (isTestRunning) "Testing..." else "Start Test", fontSize = 18.sp)
             }
         }
+        Spacer(modifier = Modifier.height(50.dp))
         // Botão para exibir o histórico de até 10 resultados anteriores
-        Button(onClick = { navController.navigate("HistoricoVelocidadeScreen") }) {
-            Text(text = "Histórico de Testes", fontSize = 18.sp)
+        Button(
+            onClick = { navController.navigate("HistoricoVelocidadeScreen") },
+            modifier = Modifier
+                .fillMaxSize()  // Preenche a tela inteira
+                .padding(16.dp)  // Aplica o padding de 16dp em torno do botão
+                .wrapContentHeight(Alignment.Bottom)  // Alinha o botão na parte inferior da tela
+                .padding(bottom = 16.dp)  // Dá um padding extra na parte inferior
+            //colors = ButtonDefaults.buttonColors(Color(0xFF87CEEB) // Azul claro)
+        ) {
+            Text(
+                text = "Histórico de Testes",
+                fontSize = 18.sp
+            )
         }
     }
 }
 
+
 @Composable
 fun HistoricoVelocidadeScreen() {
-    // Instanciando o TestResultManager
     val testResultManager = TestResultManager(context = LocalContext.current)
 
-    // Estado para armazenar os resultados para exibição
+    // Estado para armazenar os resultados
     var results = remember { testResultManager.getTestResults() }
 
-    // Estado para controle do Toast
     val context = LocalContext.current
     var showToast by remember { mutableStateOf(false) }
 
-    // Layout com o botão e o Text
+    // Layout principal
     Column(modifier = Modifier.padding(16.dp)) {
-
+        Spacer(modifier = Modifier.height(10.dp))
         // Botão para limpar o histórico
         Button(onClick = {
-            // Limpa o histórico
-            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
-            // Atualiza a lista de resultados
+            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear()
+                .apply()
             results = testResultManager.getTestResults()
-            // Exibe o Toast
             showToast = true
         }) {
             Text("Limpar Histórico")
         }
 
-        // Exibindo os resultados no Compose
-        if (results.isEmpty()) {
-            Text("Nenhum resultado disponível")
-        } else {
-            results.forEach { result ->
-                Text("Ping: ${result.ping} ms, Download: ${result.downloadSpeed} Mbps, Upload: ${result.uploadSpeed} Mbps, Timestamp: ${result.timestamp}")
+        // LazyColumn para exibir os resultados
+        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            results.forEach { result -> // Itera sobre os resultados e exibe cada um
+                item {
+                    Card(
+                        modifier = Modifier.padding(8.dp),
+                        //backgroundColor = Color.LightGray
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = "Data: ${result.timestamp}",
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Start
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = result.ping,
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Start
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = result.downloadSpeed,
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Start
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = result.uploadSpeed,
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Start
+                            )
+
+                        }
+                    }
+                }
+            }
+
+            // Exibição do Toast
+            if (showToast) {
+                Toast.makeText(context, "Histórico limpo", Toast.LENGTH_SHORT).show()
+                showToast = false
             }
         }
     }
 }
+
