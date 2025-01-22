@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
@@ -122,16 +121,26 @@ suspend fun testTcpConnectivity(host: String, port: String?): String {
     }
 }
 
+//Teste de Ping
+suspend fun testPing(host: String): String {
+    return withContext(Dispatchers.IO) {
+        try {
+            // Executar o comando de ping
+            val process = Runtime.getRuntime().exec("ping -c 1 $host")
+            val exitCode = process.waitFor()
 
-// Teste de ping
-fun testPing(host: String): Boolean {
-    return try {
-        val inetAddress = InetAddress.getByName(host)
-        inetAddress.isReachable(5000)
-    } catch (e: Exception) {
-        false
+            // Verificar o código de saída
+            if (exitCode == 0) {
+                "Ping bem-sucedido para $host!"
+            } else {
+                "Não foi possível alcançar o host $host. Código de saída: $exitCode"
+            }
+        } catch (e: Exception) {
+            "Erro ao realizar o ping: ${e.message}"
+        }
     }
 }
+
 
 @Composable
 fun ConnectivityTestScreen() {
@@ -234,13 +243,10 @@ fun ConnectivityTestScreen() {
         // Botão para testar Ping
         Button(
             onClick = {
-                pingStatus = if (testPing(host)) {
-                    "Ping bem-sucedido!"
-                } else {
-                    "Falha no ping."
+                coroutineScope.launch {
+                    pingStatus = testPing(host).toString()
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
+            }
         ) {
             Text("Testar Ping")
         }
