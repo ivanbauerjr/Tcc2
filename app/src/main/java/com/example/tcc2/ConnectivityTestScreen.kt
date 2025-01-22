@@ -100,28 +100,28 @@ suspend fun testHttpConnectivity(url: String): String {
 
 
 
-fun testTcpConnectivity(host: String, port: String?): Boolean {
+suspend fun testTcpConnectivity(host: String, port: String?): String {
     // Verificar se a porta foi fornecida
     if (port.isNullOrEmpty()) {
         // Exibir mensagem solicitando para fornecer a porta
-        println("Por favor, determine a porta.")
-        return false
+        return "Por favor, determine a porta."
     }
 
-    return try {
-        // Tentar estabelecer uma conexão TCP com o host e a porta
-        val socket = Socket()
-        val address = InetSocketAddress(host, port.toInt())
-        socket.connect(address, 5000) // Tempo de conexão de 5 segundos
-        println("Conexão TCP bem-sucedida!")
-        socket.close() // Fechar a conexão
-        true
-    } catch (e: Exception) {
-        // Se houver uma exceção (ex: falha de conexão), mostrar o erro
-        println("Erro ao conectar: ${e.message}")
-        false
+    return withContext(Dispatchers.IO) {
+        try {
+            // Tentar estabelecer uma conexão TCP com o host e a porta
+            val socket = Socket()
+            val address = InetSocketAddress(host, port.toInt())
+            socket.connect(address, 5000) // Tempo de conexão de 5 segundos
+            socket.close() // Fechar a conexão
+            "Conexão TCP bem-sucedida!"
+        } catch (e: Exception) {
+            // Se houver uma exceção (ex: falha de conexão), mostrar o erro
+            "Erro ao conectar: ${e.message}"
+        }
     }
 }
+
 
 // Teste de ping
 fun testPing(host: String): Boolean {
@@ -211,15 +211,11 @@ fun ConnectivityTestScreen() {
         // Botão para testar a conexão TCP
         Button(
             onClick = {
-                if (port.isNotEmpty()) {
-                    // Aqui você pode chamar a função para testar a conexão TCP
-                    connectionStatus = if (testTcpConnectivity(host, port)) {
-                        "Conexão TCP bem-sucedida!"
-                    } else {
-                        "Falha na conexão TCP!"
+                // Dentro de uma corrotina
+                coroutineScope.launch {
+                    if (port.isNotEmpty()) {
+                        connectionStatus = testTcpConnectivity(host, port)
                     }
-                } else {
-                    connectionStatus = "Por favor, determine a porta."
                 }
             },
             modifier = Modifier.fillMaxWidth(),
