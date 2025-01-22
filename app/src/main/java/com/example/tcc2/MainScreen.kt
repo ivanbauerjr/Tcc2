@@ -53,7 +53,7 @@ fun MainScreen(
                     Text(text = "Teste de Velocidade2", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("RedesProximasScreen") }) {
-                    Text(text = "Redes Próximas (dB)", fontSize = 18.sp)
+                    Text(text = "Redes WiFi Próximas (dB)", fontSize = 18.sp)
                 }
                 Button(onClick = {
                     onGetUserLocation { latitude, longitude ->
@@ -68,6 +68,10 @@ fun MainScreen(
                 Button(onClick = { navController.navigate("RoteadorScreen") })
                 {
                     Text(text = "Verificação das configurações de roteador", fontSize = 18.sp)
+                }
+                Button(onClick = { navController.navigate("ConnectivityTestScreen") })
+                {
+                    Text(text = "Análise de Conectividade", fontSize = 18.sp)
                 }
             }
         }

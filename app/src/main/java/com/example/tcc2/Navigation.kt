@@ -1,5 +1,6 @@
 package com.example.tcc2
 
+import ConnectivityTestScreen
 import DNSScreen
 import RoteadorScreen
 import TestedeVelocidadeScreen2
@@ -45,6 +46,9 @@ fun Navigation(
         }
         composable("HistoricoVelocidadeScreen") {
             HistoricoVelocidadeScreen()
+        }
+        composable("ConnectivityTestScreen") {
+            ConnectivityTestScreen()
         }
     }
 }
