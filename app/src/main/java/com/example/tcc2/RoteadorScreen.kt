@@ -75,8 +75,9 @@ fun RoteadorScreen() {
 
             //ipv4?
             val gatewayv4 = linkProperties?.routes?.firstOrNull {
-            it.gateway is InetAddress && it.gateway!!.hostAddress?.contains(":") == false
-        }?.gateway?.hostAddress
+                it.gateway is InetAddress && !it.gateway!!.isLoopbackAddress && it.destination.toString() == "0.0.0.0/0"
+            }?.gateway?.hostAddress
+
 
             gatewayIpv6 = gatewayv6 ?: "Desconhecido"
             gatewayIpv4 = gatewayv4 ?: "Desconhecido"
