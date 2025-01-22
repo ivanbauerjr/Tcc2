@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -150,6 +151,8 @@ fun ConnectivityTestScreen() {
     var resultMessage by remember { mutableStateOf("") }
     var connectionStatus by remember { mutableStateOf("") }
     var pingStatus by remember { mutableStateOf("") }
+    var isTCPLoading by remember { mutableStateOf(false) }
+    var isPINGLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -222,9 +225,11 @@ fun ConnectivityTestScreen() {
             onClick = {
                 // Dentro de uma corrotina
                 coroutineScope.launch {
+                    isTCPLoading = true
                     if (port.isNotEmpty()) {
                         connectionStatus = testTcpConnectivity(host, port)
                     }
+                    isTCPLoading = false
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -233,10 +238,14 @@ fun ConnectivityTestScreen() {
             Text("Testar Conexão TCP")
         }
         // Exibe o status da conexão
-        Text(
-            text = connectionStatus,
-            //style = MaterialTheme.typography.h6
-        )
+        if (isTCPLoading) {
+            CircularProgressIndicator()
+        } else {
+            Text(
+                text = connectionStatus,
+                //style = MaterialTheme.typography.h6
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -244,15 +253,21 @@ fun ConnectivityTestScreen() {
         Button(
             onClick = {
                 coroutineScope.launch {
+                    isPINGLoading = true
                     pingStatus = testPing(host).toString()
+                    isPINGLoading = false
                 }
             }
         ) {
             Text("Testar Ping")
         }
-        Text(
-            text = pingStatus
-            //style = MaterialTheme.typography.h6
-        )
+        if (isPINGLoading) {
+            CircularProgressIndicator()
+        } else {
+            Text(
+                text = pingStatus
+                //style = MaterialTheme.typography.h6
+            )
+        }
     }
 }
