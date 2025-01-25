@@ -4,8 +4,10 @@ import ConnectivityTestScreen
 import DNSScreen
 import RoteadorScreen
 import TestedeVelocidadeScreen2
+import NetworkScanScreen
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -49,6 +51,9 @@ fun Navigation(
         }
         composable("ConnectivityTestScreen") {
             ConnectivityTestScreen()
+        }
+        composable("NetworkScanScreen") {
+            NetworkScanScreen(context = LocalContext.current)
         }
     }
 }

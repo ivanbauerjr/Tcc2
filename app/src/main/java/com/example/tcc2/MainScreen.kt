@@ -73,6 +73,9 @@ fun MainScreen(
                 {
                     Text(text = "Análise de Conectividade", fontSize = 18.sp)
                 }
+                Button(onClick = { navController.navigate("NetworkScanScreen") }) {
+                    Text(text = "Network Scan", fontSize = 18.sp)
+                }
             }
         }
     }
