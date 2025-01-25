@@ -13,8 +13,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
+import com.example.tcc2.models.LocationViewModel
 import com.example.tcc2.ui.theme.Tcc2Theme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -30,54 +32,57 @@ class MainActivity : ComponentActivity() {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        requestPermissions()
+        val locationViewModel: LocationViewModel by viewModels()
+
+        requestPermissions(locationViewModel)
 
         setContent {
             Tcc2Theme {
-                Navigation(onGetUserLocation = { callback ->
-                    getUserLocation(callback)
-                })
+                Navigation(
+                    locationViewModel = locationViewModel,
+                    onGetUserLocation = { callback ->
+                        getUserLocation(callback, locationViewModel)
+                    }
+                )
             }
         }
     }
 
-    private fun requestPermissions() {
+    private fun requestPermissions(locationViewModel: LocationViewModel) {
         val requestPermissionLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
                 if (!isGranted) {
-                    Log.e("Permissions", "Location permission denied")
                     showPermissionDeniedMessage()
+                } else {
+                    checkLocationServicesEnabled(locationViewModel)
                 }
             }
 
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         } else {
-            checkLocationServicesEnabled()
+            checkLocationServicesEnabled(locationViewModel)
         }
     }
 
-    private fun getUserLocation(callback: (Double, Double) -> Unit) {
+    private fun getUserLocation(callback: (Double, Double) -> Unit, locationViewModel: LocationViewModel) {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e("Location", "Location permissions are not granted")
-            return
-        }
-
-        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                callback(location.latitude, location.longitude)
-            } else {
-                Log.e("Location", "Failed to retrieve location")
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    locationViewModel.setLocation(location.latitude, location.longitude)
+                    callback(location.latitude, location.longitude)
+                } else {
+                    Snackbar.make(
+                        findViewById(android.R.id.content),
+                        "Unable to retrieve location.",
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
             }
-        }.addOnFailureListener { exception ->
-            Log.e("Location", "Error retrieving location", exception)
         }
     }
 
@@ -87,23 +92,25 @@ class MainActivity : ComponentActivity() {
             "Location permission is required for this feature.",
             Snackbar.LENGTH_LONG
         ).setAction("Settings") {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", packageName, null)
-            }
-            startActivity(intent)
+            })
         }.show()
     }
 
-    private fun checkLocationServicesEnabled() {
+    private fun checkLocationServicesEnabled(locationViewModel: LocationViewModel) {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            AlertDialog.Builder(this)
-                .setMessage("Location services are disabled. Please enable them in settings.")
-                .setPositiveButton("Settings") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+            Snackbar.make(
+                findViewById(android.R.id.content),
+                "Location services are disabled. Please enable them in settings.",
+                Snackbar.LENGTH_LONG
+            ).setAction("Settings") {
+                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            }.show()
+        } else {
+            // If GPS is enabled, fetch the location
+            getUserLocation({ lat, lon -> locationViewModel.setLocation(lat, lon) }, locationViewModel)
         }
     }
 }

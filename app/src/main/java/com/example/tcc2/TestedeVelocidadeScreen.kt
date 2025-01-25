@@ -16,12 +16,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.tcc2.models.LocationViewModel
 import com.example.tcc2.models.Server
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -58,7 +62,6 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
-
 
 data class TestResult(
     val ping: String,
@@ -296,14 +299,6 @@ suspend fun fetchServers(userLat: Double, userLon: Double): List<Server> {
     }
 }
 
-
-fun findClosestServer(servers: List<Server>, userLat: Double, userLon: Double): Server? {
-    servers.forEach {
-        it.distance = calculateDistance(userLat, userLon, it.lat, it.lon)
-    }
-    return servers.minByOrNull { it.distance }
-}
-
 suspend fun measureUploadSpeed(serverUrl: String, onProgressUpdate: (Float) -> Unit): String {
     return withContext(Dispatchers.IO) {
         val buffer = ByteArray(150 * 1024) { 'x'.code.toByte() } // 150 KB buffer
@@ -357,13 +352,8 @@ fun round(value: Double, places: Int): Double {
 }
 
 @Composable
-fun Box(modifier: Modifier, content: @Composable () -> Unit) {
-
-}
-
-@Composable
 fun TestedeVelocidadeScreen(
-    modifier: Modifier = Modifier,
+    locationViewModel: LocationViewModel,
     onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
     navController: NavController
 ) {
@@ -375,45 +365,74 @@ fun TestedeVelocidadeScreen(
     var closestServer by remember { mutableStateOf<Server?>(null) }
     var availableServers by remember { mutableStateOf<List<Server>>(emptyList()) }
     var isServerDialogVisible by remember { mutableStateOf(false) }
+    var isFetchingLocation by remember { mutableStateOf(false) }
+    var locationErrorMessage by remember { mutableStateOf<String?>(null) }
+    val location by locationViewModel.location.collectAsState()
 
-    // Lista para armazenar os últimos 10 resultados
-    var testResults by remember { mutableStateOf<List<TestResult>>(emptyList()) }
-
-    // Inicializando o TestResultManager
     val testResultManager = TestResultManager(LocalContext.current)
 
-    // Fetch user location
+    // Fetch user location when the screen loads
     LaunchedEffect(Unit) {
+        isFetchingLocation = true
         onGetUserLocation { lat, lon ->
             userLocation = Pair(lat, lon)
+            isFetchingLocation = false
+            locationErrorMessage = null
         }
     }
 
+    // UI content
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.Top
     ) {
         Text(
-            text = "Location: ${
-                userLocation?.let { "${it.first}, ${it.second}" } ?: "Fetching..."
-            }",
+            text = location?.let { "Location: ${it.first}, ${it.second}" } ?: "Location unavailable",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
+        // Show an error message if fetching location failed
+        locationErrorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        // Button to fetch location if it's not available
+        if (userLocation == null && !isFetchingLocation) {
+            Button(
+                onClick = {
+                    isFetchingLocation = true
+                    onGetUserLocation { lat, lon ->
+                        userLocation = Pair(lat, lon)
+                        isFetchingLocation = false
+                        locationErrorMessage = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Get Location", fontSize = 18.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Fetch servers with latency once location is available
         Button(
             onClick = {
                 if (userLocation != null) {
                     coroutineScope.launch {
                         isTestRunning = true
                         resultText = "Fetching servers and measuring latency..."
-                        val servers =
-                            fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
-                        availableServers =
-                            servers.take(10) // Show the 10 best servers by latency
+                        val servers = fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
+                        availableServers = servers.take(5) // Show the 5 best servers by latency
                         isTestRunning = false
+                        resultText = "Select a server to proceed."
                     }
                 } else {
                     resultText = "Error: Unable to fetch user location."
@@ -424,10 +443,9 @@ fun TestedeVelocidadeScreen(
             Text(text = "Fetch Servers with Latency", fontSize = 18.sp)
         }
 
-
-
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Display selected server details
         if (closestServer != null) {
             Text(
                 text = "Closest Server: ${closestServer?.name} (${closestServer?.sponsor})\nDistance: ${
@@ -441,6 +459,7 @@ fun TestedeVelocidadeScreen(
             )
         }
 
+        // Button to select a server
         Button(
             onClick = { isServerDialogVisible = true },
             enabled = availableServers.isNotEmpty()
@@ -448,6 +467,7 @@ fun TestedeVelocidadeScreen(
             Text("Select Server", fontSize = 18.sp)
         }
 
+        // Server selection dialog
         if (isServerDialogVisible) {
             ServerSelectionDialog(
                 servers = availableServers,
@@ -461,6 +481,7 @@ fun TestedeVelocidadeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Speed testing section
         closestServer?.let { server ->
             Text(
                 text = resultText,
@@ -469,7 +490,7 @@ fun TestedeVelocidadeScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             LinearProgressIndicator(
-                progress = { progress },
+                progress = progress,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp),

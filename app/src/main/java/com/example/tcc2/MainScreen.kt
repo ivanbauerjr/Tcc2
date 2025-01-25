@@ -24,14 +24,10 @@ import androidx.navigation.NavHostController
 @Composable
 fun MainScreen(
     navController: NavHostController,
-    onGetUserLocation: (callback: (Double, Double) -> Unit) -> Unit
+    onLocationDetermined: (Double, Double) -> Unit
 ) {
-    var userLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
-
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Main Screen") })
-        }
+        topBar = { TopAppBar(title = { Text("Main Screen") }) }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -55,22 +51,10 @@ fun MainScreen(
                 Button(onClick = { navController.navigate("RedesProximasScreen") }) {
                     Text(text = "Redes WiFi Próximas (dB)", fontSize = 18.sp)
                 }
-                Button(onClick = {
-                    onGetUserLocation { latitude, longitude ->
-                        userLocation = latitude to longitude
-                    }
-                }) {
-                    Text(text = "Get User Location", fontSize = 18.sp)
-                }
-                userLocation?.let { (latitude, longitude) ->
-                    Text(text = "Latitude: $latitude, Longitude: $longitude", fontSize = 16.sp)
-                }
-                Button(onClick = { navController.navigate("RoteadorScreen") })
-                {
+                Button(onClick = { navController.navigate("RoteadorScreen") }) {
                     Text(text = "Verificação das configurações de roteador", fontSize = 18.sp)
                 }
-                Button(onClick = { navController.navigate("ConnectivityTestScreen") })
-                {
+                Button(onClick = { navController.navigate("ConnectivityTestScreen") }) {
                     Text(text = "Análise de Conectividade", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("NetworkScanScreen") }) {
@@ -80,3 +64,4 @@ fun MainScreen(
         }
     }
 }
+
