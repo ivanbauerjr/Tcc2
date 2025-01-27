@@ -8,6 +8,7 @@ espressoCore = "3.6.1"
 lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.12.01"
+materialVersion = "latest_version"
 navigationCompose = "2.8.5"
 okhttp = "4.9.3"
 playServicesMaps = "19.0.0"
@@ -16,6 +17,7 @@ appcompat = "1.7.0"
 material = "1.12.0"
 
 [libraries]
+material-vlatestversion = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

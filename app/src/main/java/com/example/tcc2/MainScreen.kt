@@ -11,10 +11,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,15 +35,15 @@ fun MainScreen(
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Button(onClick = { navController.navigate("DNSScreen") }) {
-                    Text(text = "DNS", fontSize = 18.sp)
-                }
                 Button(onClick = { navController.navigate("TestedeVelocidadeScreen") }) {
                     Text(text = "Teste de Velocidade", fontSize = 18.sp)
                 }
-                Button(onClick = { navController.navigate("TestedeVelocidadeScreen2") }) {
-                    Text(text = "Teste de Velocidade2", fontSize = 18.sp)
+                Button(onClick = { navController.navigate("DNSScreen") }) {
+                    Text(text = "DNS", fontSize = 18.sp)
                 }
+//                Button(onClick = { navController.navigate("TestedeVelocidadeScreen2") }) {
+//                    Text(text = "Teste de Velocidade2", fontSize = 18.sp)
+//                }
                 Button(onClick = { navController.navigate("RedesProximasScreen") }) {
                     Text(text = "Redes WiFi Próximas (dB)", fontSize = 18.sp)
                 }
