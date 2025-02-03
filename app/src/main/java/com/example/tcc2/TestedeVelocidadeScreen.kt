@@ -3,7 +3,6 @@ package com.example.tcc2
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,14 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -38,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -117,39 +113,6 @@ fun formatTimestamp(timestamp: String): String {
     } catch (e: Exception) {
         "Invalid Timestamp"
     }
-}
-
-@Composable
-fun ServerSelectionDialog(
-    servers: List<Server>,
-    onServerSelected: (Server) -> Unit,
-    onDismissRequest: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text("Escolha um servidor") },
-        text = {
-            Column {
-                servers.sortedBy { it.latency }.forEach { server -> // Sort by latency
-                    TextButton(onClick = {
-                        onServerSelected(server)
-                        onDismissRequest()
-                    }) {
-                        Text(
-                            text = "${server.name} (${server.sponsor}) - " +
-                                    "Latência: ${server.latency} ms, " +
-                                    "Distância: ${round(server.distance, 2)} km"
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 suspend fun performPing(hostname: String): String {
@@ -363,7 +326,6 @@ fun TestedeVelocidadeScreen(
     onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
     navController: NavController
 ) {
-    var resultText by remember { mutableStateOf("Clique no botão para iniciar o teste!") }
     var isTestRunning by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
@@ -441,7 +403,7 @@ fun TestedeVelocidadeScreen(
                 },
                 enabled = userLocation != null && !isTestRunning
             ) {
-                Text(text = "Buscar servidores com latência", fontSize = 18.sp)
+                Text(text = "Buscar servidores", fontSize = 18.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

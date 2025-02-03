@@ -41,8 +41,8 @@ fun Navigation(
         composable("DNSScreen") {
             DNSScreen()
         }
-        composable("TestedeVelocidadeScreen2") {
-            TestedeVelocidadeScreen2()
+        composable("NetworkDiagnosticsScreen") {
+            NetworkDiagnosticsScreen()
         }
         composable("RedesProximasScreen") {
             RedesProximasScreen()
@@ -58,6 +58,9 @@ fun Navigation(
         }
         composable("NetworkScanScreen") {
             NetworkScanScreen(context = LocalContext.current)
+        }
+        composable("AdvancedOptionsScreen") {
+            AdvancedOptionsScreen(navController = navController)
         }
     }
 }

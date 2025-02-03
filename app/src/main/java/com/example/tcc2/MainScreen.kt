@@ -36,29 +36,16 @@ fun MainScreen(
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Button(onClick = { navController.navigate("NetworkDiagnosticsScreen") }) {
+                    Text(text = "Diagnóstico de Rede", fontSize = 18.sp)
+                }
                 Button(onClick = { navController.navigate("TestedeVelocidadeScreen") }) {
                     Text(text = "Teste de Velocidade", fontSize = 18.sp)
                 }
-                Button(onClick = { navController.navigate("DNSScreen") }) {
-                    Text(text = "Sistema de Nomes de Domínio", fontSize = 18.sp)
-                }
-//                Button(onClick = { navController.navigate("TestedeVelocidadeScreen2") }) {
-//                    Text(text = "Teste de Velocidade2", fontSize = 18.sp)
-//                }
-                Button(onClick = { navController.navigate("RedesProximasScreen") }) {
-                    Text(text = "Redes WiFi Próximas", fontSize = 18.sp)
-                }
-                Button(onClick = { navController.navigate("RoteadorScreen") }) {
-                    Text(text = "Configurações do roteador", fontSize = 18.sp)
-                }
-                Button(onClick = { navController.navigate("ConnectivityTestScreen") }) {
-                    Text(text = "Análise de Conectividade", fontSize = 18.sp)
-                }
-                Button(onClick = { navController.navigate("NetworkScanScreen") }) {
-                    Text(text = "Escaneamento da Rede", fontSize = 18.sp)
+                Button(onClick = { navController.navigate("AdvancedOptionsScreen") }) {
+                    Text(text = "Opções Avançadas", fontSize = 18.sp)
                 }
             }
         }
     }
 }
-
