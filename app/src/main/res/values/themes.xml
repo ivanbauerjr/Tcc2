@@ -1,5 +1,5 @@
 <resources>
-<style name="Theme.Tcc2" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+<style name="Theme.Tcc2" parent="Theme.MaterialComponents.Light.NoActionBar">
     <!-- Personalize as cores aqui -->
 </style>
 </resources>

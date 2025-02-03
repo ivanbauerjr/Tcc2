@@ -5,15 +5,15 @@ import DNSScreen
 import RoteadorScreen
 import TestedeVelocidadeScreen2
 import NetworkScanScreen
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.tcc2.models.LocationViewModel
 
+@ExperimentalMaterial3Api
 @Composable
 fun Navigation(
     locationViewModel: LocationViewModel,
@@ -28,9 +28,7 @@ fun Navigation(
         composable("MainScreen") {
             MainScreen(
                 navController = navController,
-                onLocationDetermined = { lat, lon ->
-                    locationViewModel.setLocation(lat, lon)
-                }
+                onLocationDetermined = locationViewModel::setLocation
             )
         }
         composable("TestedeVelocidadeScreen") {

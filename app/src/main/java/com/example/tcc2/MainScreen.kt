@@ -15,15 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import kotlin.reflect.KFunction2
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     navController: NavHostController,
-    onLocationDetermined: (Double, Double) -> Unit
+    onLocationDetermined: KFunction2<Double, Double, Unit>,
 ) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Main Screen") }) }
+        topBar = { TopAppBar(title = { Text("Tela Principal") }) }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -39,22 +40,22 @@ fun MainScreen(
                     Text(text = "Teste de Velocidade", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("DNSScreen") }) {
-                    Text(text = "DNS", fontSize = 18.sp)
+                    Text(text = "Sistema de Nomes de Domínio", fontSize = 18.sp)
                 }
 //                Button(onClick = { navController.navigate("TestedeVelocidadeScreen2") }) {
 //                    Text(text = "Teste de Velocidade2", fontSize = 18.sp)
 //                }
                 Button(onClick = { navController.navigate("RedesProximasScreen") }) {
-                    Text(text = "Redes WiFi Próximas (dB)", fontSize = 18.sp)
+                    Text(text = "Redes WiFi Próximas", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("RoteadorScreen") }) {
-                    Text(text = "Verificação das configurações de roteador", fontSize = 18.sp)
+                    Text(text = "Configurações do roteador", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("ConnectivityTestScreen") }) {
                     Text(text = "Análise de Conectividade", fontSize = 18.sp)
                 }
                 Button(onClick = { navController.navigate("NetworkScanScreen") }) {
-                    Text(text = "Network Scan", fontSize = 18.sp)
+                    Text(text = "Escaneamento da Rede", fontSize = 18.sp)
                 }
             }
         }

@@ -26,7 +26,7 @@ fun NetworkScanScreen(context: Context) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Network Scan") })
+            TopAppBar(title = { Text("Escaneador de Rede") })
         }
     ) { padding ->
         Box(

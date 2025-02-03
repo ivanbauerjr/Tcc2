@@ -16,12 +16,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -122,7 +127,7 @@ fun ServerSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text("Select a Server") },
+        title = { Text("Escolha um servidor") },
         text = {
             Column {
                 servers.sortedBy { it.latency }.forEach { server -> // Sort by latency
@@ -132,8 +137,8 @@ fun ServerSelectionDialog(
                     }) {
                         Text(
                             text = "${server.name} (${server.sponsor}) - " +
-                                    "Latency: ${server.latency} ms, " +
-                                    "Distance: ${round(server.distance, 2)} km"
+                                    "Latência: ${server.latency} ms, " +
+                                    "Distância: ${round(server.distance, 2)} km"
                         )
                     }
                 }
@@ -351,27 +356,31 @@ fun round(value: Double, places: Int): Double {
     }
 }
 
+@ExperimentalMaterial3Api
 @Composable
 fun TestedeVelocidadeScreen(
     locationViewModel: LocationViewModel,
     onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
     navController: NavController
 ) {
-    var resultText by remember { mutableStateOf("Click the button to start testing!") }
+    var resultText by remember { mutableStateOf("Clique no botão para iniciar o teste!") }
     var isTestRunning by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
     var userLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var closestServer by remember { mutableStateOf<Server?>(null) }
     var availableServers by remember { mutableStateOf<List<Server>>(emptyList()) }
-    var isServerDialogVisible by remember { mutableStateOf(false) }
     var isFetchingLocation by remember { mutableStateOf(false) }
+    var isServerDialogVisible by remember { mutableStateOf(false) }
     var locationErrorMessage by remember { mutableStateOf<String?>(null) }
     val location by locationViewModel.location.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val testResultManager = TestResultManager(LocalContext.current)
 
-    // Fetch user location when the screen loads
+    var showResultDialog by remember { mutableStateOf(false) }
+    var testResultState by remember { mutableStateOf<TestResult?>(null) }
+
     LaunchedEffect(Unit) {
         isFetchingLocation = true
         onGetUserLocation { lat, lon ->
@@ -381,249 +390,235 @@ fun TestedeVelocidadeScreen(
         }
     }
 
-    // UI content
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Top
-    ) {
-        Text(
-            text = location?.let { "Location: ${it.first}, ${it.second}" } ?: "Location unavailable",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // Show an error message if fetching location failed
-        locationErrorMessage?.let {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Medição de Velocidade") }
+            )
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+            // Exibe a localização do usuário
             Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
+                text = location?.let { "Localização: ${it.first}, ${it.second}" } ?: "Localização indisponível",
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-        }
 
-        // Button to fetch location if it's not available
-        if (userLocation == null && !isFetchingLocation) {
+            locationErrorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+
             Button(
                 onClick = {
-                    isFetchingLocation = true
-                    onGetUserLocation { lat, lon ->
-                        userLocation = Pair(lat, lon)
-                        isFetchingLocation = false
-                        locationErrorMessage = null
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = "Get Location", fontSize = 18.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Fetch servers with latency once location is available
-        Button(
-            onClick = {
-                if (userLocation != null) {
                     coroutineScope.launch {
                         isTestRunning = true
-                        resultText = "Fetching servers and measuring latency..."
+                        snackbarHostState.showSnackbar("Buscando servidores, aguarde...")
+
                         val servers = fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
-                        availableServers = servers.take(5) // Show the 5 best servers by latency
+                        availableServers = servers.take(5)
+
+                        if (availableServers.isNotEmpty()) {
+                            closestServer = availableServers.first()
+                            snackbarHostState.showSnackbar("Melhor servidor selecionado: ${closestServer?.name}")
+                        } else {
+                            snackbarHostState.showSnackbar("Nenhum servidor disponível!")
+                        }
+
                         isTestRunning = false
-                        resultText = "Select a server to proceed."
                     }
-                } else {
-                    resultText = "Error: Unable to fetch user location."
-                }
-            },
-            enabled = userLocation != null && !isTestRunning
-        ) {
-            Text(text = "Fetch Servers with Latency", fontSize = 18.sp)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Display selected server details
-        if (closestServer != null) {
-            Text(
-                text = "Closest Server: ${closestServer?.name} (${closestServer?.sponsor})\nDistance: ${
-                    round(
-                        closestServer?.distance ?: 0.0,
-                        2
-                    )
-                } km\nURL: ${closestServer?.url}",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
-        // Button to select a server
-        Button(
-            onClick = { isServerDialogVisible = true },
-            enabled = availableServers.isNotEmpty()
-        ) {
-            Text("Select Server", fontSize = 18.sp)
-        }
-
-        // Server selection dialog
-        if (isServerDialogVisible) {
-            ServerSelectionDialog(
-                servers = availableServers,
-                onServerSelected = { server ->
-                    closestServer = server
-                    resultText = "Selected Server: ${server.name} (${server.sponsor})"
                 },
-                onDismissRequest = { isServerDialogVisible = false }
-            )
-        }
+                enabled = userLocation != null && !isTestRunning
+            ) {
+                Text(text = "Buscar servidores com latência", fontSize = 18.sp)
+            }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Speed testing section
-        closestServer?.let { server ->
-            Text(
-                text = resultText,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.fillMaxWidth()
-            )
+            closestServer?.let { server ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Servidor Selecionado", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("${server.name} (${server.sponsor})", fontSize = 16.sp)
+                        Text("Latência: ${server.latency} ms", fontSize = 16.sp)
+                        Text("Distância: ${round(server.distance, 2)} km", fontSize = 16.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { isServerDialogVisible = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Selecionar outro servidor", fontSize = 16.sp)
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    if (!isTestRunning) {
+
+            closestServer?.let { server ->
+                Button(
+                    onClick = {
                         isTestRunning = true
-                        resultText = "Testing..."
                         progress = 0f
                         coroutineScope.launch {
-                            val pingResult = performPing("8.8.8.8")
+                            snackbarHostState.showSnackbar("Iniciando teste de velocidade...")
+
+                            val serverHost = URL(closestServer?.url).host
+                            val pingResult = performPing(serverHost)
                             val downloadSpeedResult =
                                 measureDownloadSpeed(server.url) { currentProgress ->
                                     progress = currentProgress
                                 }
                             val uploadSpeedResult =
                                 measureUploadSpeed(server.url) { currentProgress ->
-                                    progress =
-                                        0.5f + (currentProgress / 2f) // Continue progress after download
+                                    progress = 0.5f + (currentProgress / 2f)
                                 }
-                            resultText =
-                                "Ping: $pingResult\nDownload: $downloadSpeedResult\nUpload: $uploadSpeedResult"
-                            progress = 1f
-                            isTestRunning = false
 
-                            // Adiciona o resultado à lista de testes
-                            val newResult = TestResult(
+                            testResultState = TestResult(
                                 ping = pingResult,
                                 downloadSpeed = downloadSpeedResult,
                                 uploadSpeed = uploadSpeedResult,
-                                timestamp = formatTimestamp(
-                                    System.currentTimeMillis().toString()
-                                )
+                                timestamp = formatTimestamp(System.currentTimeMillis().toString())
                             )
-                            // Salvando o resultado
-                            testResultManager.saveTestResult(newResult)
+
+                            testResultManager.saveTestResult(testResultState!!)
+
+                            showResultDialog = true
+
+                            progress = 1f
+                            isTestRunning = false
                         }
-                    }
-                },
-                enabled = !isTestRunning
+                    },
+                    enabled = !isTestRunning
+                ) {
+                    Text(text = if (isTestRunning) "Medindo..." else "Começar Teste", fontSize = 18.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(50.dp))
+
+            Button(
+                onClick = { navController.navigate("HistoricoVelocidadeScreen") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Text(text = if (isTestRunning) "Testing..." else "Start Test", fontSize = 18.sp)
+                Text(text = "Histórico de Testes", fontSize = 18.sp)
             }
         }
-        Spacer(modifier = Modifier.height(50.dp))
-        // Botão para exibir o histórico de até 10 resultados anteriores
-        Button(
-            onClick = { navController.navigate("HistoricoVelocidadeScreen") },
-            modifier = Modifier
-                .fillMaxSize()  // Preenche a tela inteira
-                .padding(16.dp)  // Aplica o padding de 16dp em torno do botão
-                .wrapContentHeight(Alignment.Bottom)  // Alinha o botão na parte inferior da tela
-                .padding(bottom = 16.dp)  // Dá um padding extra na parte inferior
-            //colors = ButtonDefaults.buttonColors(Color(0xFF87CEEB) // Azul claro)
-        ) {
-            Text(
-                text = "Histórico de Testes",
-                fontSize = 18.sp
-            )
-        }
+    }
+
+    if (isServerDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isServerDialogVisible = false },
+            title = { Text("Escolha um servidor") },
+            text = {
+                Column {
+                    availableServers.sortedBy { it.latency }.forEach { server ->
+                        TextButton(
+                            onClick = {
+                                closestServer = server
+                                isServerDialogVisible = false
+                            }
+                        ) {
+                            Text(
+                                text = "${server.name} (${server.sponsor}) - Latência: ${server.latency} ms",
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { isServerDialogVisible = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showResultDialog && testResultState != null) {
+        AlertDialog(
+            onDismissRequest = { showResultDialog = false },
+            title = { Text("Resultado do Teste de Velocidade") },
+            text = {
+                Column {
+                    Text("Ping: ${testResultState?.ping}")
+                    Text("Download: ${testResultState?.downloadSpeed}")
+                    Text("Upload: ${testResultState?.uploadSpeed}")
+                    Text("Data: ${testResultState?.timestamp}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showResultDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 
 
 @Composable
 fun HistoricoVelocidadeScreen() {
-    val testResultManager = TestResultManager(context = LocalContext.current)
-
-    // Estado para armazenar os resultados
-    var results = remember { testResultManager.getTestResults() }
-
     val context = LocalContext.current
-    var showToast by remember { mutableStateOf(false) }
+    val testResultManager = remember { TestResultManager(context) }
+    val results = remember { mutableStateOf(testResultManager.getTestResults()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Layout principal
-    Column(modifier = Modifier.padding(16.dp)) {
-        Spacer(modifier = Modifier.height(10.dp))
-        // Botão para limpar o histórico
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Histórico de Testes de Velocidade", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
+
         Button(onClick = {
-            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear()
-                .apply()
-            results = testResultManager.getTestResults()
-            showToast = true
+            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
+            results.value = emptyList() // Atualiza o estado para refletir a remoção dos dados
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
+            }
         }) {
             Text("Limpar Histórico")
         }
 
-        // LazyColumn para exibir os resultados
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            results.forEach { result -> // Itera sobre os resultados e exibe cada um
-                item {
-                    Card(
-                        modifier = Modifier.padding(8.dp),
-                        //backgroundColor = Color.LightGray
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(
-                                text = "Data: ${result.timestamp}",
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Start
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = result.ping,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Start
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = result.downloadSpeed,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Start
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = result.uploadSpeed,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Start
-                            )
+        Spacer(modifier = Modifier.height(16.dp))
 
-                        }
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(results.value.size) { index ->
+                val result = results.value[index]
+                Card(modifier = Modifier.padding(8.dp)) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text("Data: ${result.timestamp}", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(result.ping, fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(result.downloadSpeed, fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(result.uploadSpeed, fontSize = 16.sp)
                     }
                 }
             }
-
-            // Exibição do Toast
-            if (showToast) {
-                Toast.makeText(context, "Histórico limpo", Toast.LENGTH_SHORT).show()
-                showToast = false
-            }
         }
+
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.CenterHorizontally))
     }
 }
 
