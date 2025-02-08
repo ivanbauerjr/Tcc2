@@ -4,20 +4,29 @@ import android.net.ConnectivityManager
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,10 +34,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +61,8 @@ fun DNSScreen() {
     var activeDNS by remember { mutableStateOf("") }
     // Obter o DNS ativo quando a tela for carregada
     var comparisonMessage by remember { mutableStateOf("") } // Mensagem de comparação
+    var showResults by remember { mutableStateOf(false) }
+
 
     LaunchedEffect(Unit) {
         activeDNS = getActiveDNS(context).replace("/", "")
@@ -81,13 +94,21 @@ fun DNSScreen() {
 
             //Spacer(modifier = Modifier.height(10.dp))
 
-            // Campo de entrada para o domínio
-            TextField(
+            // Campo de entrada para o domínio com design aprimorado
+            OutlinedTextField(
                 value = domain,
                 onValueChange = { domain = it },
-                label = { Text("Digite o domínio", fontSize = 16.sp) },
-                textStyle = TextStyle(fontSize = 20.sp), // Define o tamanho da fonte do texto digitado
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Digite o domínio") },
+                placeholder = { Text("ex: google.com") },
+                textStyle = TextStyle(fontSize = 20.sp),
+                modifier = Modifier.fillMaxWidth(),
+                trailingIcon = {
+                    if (domain.text.isNotBlank()) {
+                        IconButton(onClick = { domain = TextFieldValue("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                        }
+                    }
+                }
             )
 
             // Botão para resolver DNS
@@ -103,6 +124,7 @@ fun DNSScreen() {
                     resolveUsingCloudflareDNS(domain.text) { dnsResult ->
                         resultCloudflareDNS = dnsResult
                     }
+                    showResults = true // Exibe os cards após apertar o botão
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = domain.text.isNotBlank() && !isLoading
@@ -116,25 +138,64 @@ fun DNSScreen() {
             }
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Exibição do resultado
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Resultado utilizando o DNS ativo:", fontSize = 23.sp)
+            // Exibição do resultado do DNS ativo
+            if (showResults) Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)) // Azul claro
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Resultado usando o DNS ativo:",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (result.isNotBlank()) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = "Status",
+                            tint = if (result.isNotBlank()) Color(0xFF00AA00) else Color.Red
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = result.ifBlank { "Erro ao resolver domínio" },
+                            fontSize = 18.sp
+                        )
+                    }
+                }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = result, fontSize = 22.sp)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Resultado utilizando usando o DNS da Cloudflare (1.1.1.1):",
-                    fontSize = 23.sp
-                )
+            // Exibição do resultado do DNS da Cloudflare
+            if (showResults) Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)) // Laranja claro
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Resultado usando o DNS da Cloudflare (1.1.1.1):",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (resultCloudflareDNS.isNotBlank()) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = "Status",
+                            tint = if (resultCloudflareDNS.isNotBlank()) Color(0xFF00AA00) else Color.Red
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = resultCloudflareDNS.ifBlank { "Erro ao resolver domínio" },
+                            fontSize = 18.sp
+                        )
+                    }
+                }
             }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(text = resultCloudflareDNS, fontSize = 22.sp)
-            }
+
 
             if (result.isNotEmpty() && resultCloudflareDNS.isNotEmpty()) {
                 // Comparação entre os resultados
