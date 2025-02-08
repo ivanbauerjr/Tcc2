@@ -3,31 +3,39 @@ package com.example.tcc2
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.wifi.ScanResult
-import android.net.wifi.WifiManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.*
 
 class WifiListActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +43,18 @@ class WifiListActivity : ComponentActivity() {
         setContent {
             RedesProximasScreen()
         }
+    }
+}
+
+// Função que retorna a cor com base no nível do sinal
+@Composable
+fun getSignalStrengthColor(rssi: Int): Color {
+    return when {
+        rssi > -50 -> Color.Green      // Ótima
+        rssi > -60 -> Color(0xFF66BB6A) // Boa (verde mais claro)
+        rssi > -70 -> Color.Yellow     // Moderada
+        rssi > -80 -> Color(0xFFFFA500) // Fraca (Laranja)
+        else -> Color.Red              // Muito fraca
     }
 }
 
@@ -137,7 +157,7 @@ fun WifiNetworkItem(networkName: String, signalStrength: Int, securityType: Stri
         Text(
             text = "Intensidade do sinal: $signalStrength dBm",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
+            color = getSignalStrengthColor(signalStrength) // Aplica cor dinâmica
         )
         Text(
             text = "Segurança: $securityType",
