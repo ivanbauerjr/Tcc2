@@ -1,4 +1,6 @@
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -58,7 +60,7 @@ suspend fun testHttpConnectivity(url: String): String {
             // Retorna a mensagem de acordo com o código HTTP
             when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
-                    "Conexão bem-sucedida! Código 200."
+                    "Conexão bem-sucedida! Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_MOVED_TEMP, HttpURLConnection.HTTP_MOVED_PERM -> {
                     "Redirecionamento detectado. Código: $responseCode"
@@ -73,22 +75,22 @@ suspend fun testHttpConnectivity(url: String): String {
                     "Requisição malformada. Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_UNAUTHORIZED -> {
-                    "Não autorizado. Código 401."
+                    "Não autorizado. Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_FORBIDDEN -> {
-                    "Proibido. Código 403."
+                    "Proibido. Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_CLIENT_TIMEOUT -> {
-                    "Tempo de requisição esgotado. Código 408."
+                    "Tempo de requisição esgotado. Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_BAD_GATEWAY -> {
-                    "Erro de gateway. Código 502."
+                    "Erro de gateway. Código: $responseCode"
                 }
                 HttpURLConnection.HTTP_UNAVAILABLE -> {
-                    "Serviço indisponível. Código 503."
+                    "Serviço indisponível. Código: $responseCode"
                 }
                 else -> {
-                    "Outro código HTTP: $responseCode"
+                    "Código: $responseCode"
                 }
             }
         } catch (e: Exception) {
@@ -98,7 +100,15 @@ suspend fun testHttpConnectivity(url: String): String {
     }
 }
 
+fun savePingResult(context: Context, host: String, pingTime: Long) {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("PingResults", Context.MODE_PRIVATE)
+    sharedPreferences.edit().putLong(host, pingTime).apply()
+}
 
+fun getPreviousPingResult(context: Context, host: String): Long? {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("PingResults", Context.MODE_PRIVATE)
+    return if (sharedPreferences.contains(host)) sharedPreferences.getLong(host, -1) else null
+}
 
 suspend fun testTcpConnectivity(host: String, port: String?): String {
     // Verificar se a porta foi fornecida
@@ -122,17 +132,24 @@ suspend fun testTcpConnectivity(host: String, port: String?): String {
     }
 }
 
-//Teste de Ping
-suspend fun testPing(host: String): String {
+suspend fun testPing(host: String, context: Context): String {
     return withContext(Dispatchers.IO) {
         try {
-            // Executar o comando de ping
+            val startTime = System.currentTimeMillis()
             val process = Runtime.getRuntime().exec("ping -c 1 $host")
             val exitCode = process.waitFor()
+            val endTime = System.currentTimeMillis()
+            val pingTime = endTime - startTime
 
-            // Verificar o código de saída
-            if (exitCode == 0) {
-                "Ping bem-sucedido para $host!"
+            return@withContext if (exitCode == 0) {
+                val previousPing = getPreviousPingResult(context, host)
+                savePingResult(context, host, pingTime)
+                if (previousPing != null) {
+                    "Ping bem-sucedido para $host! Tempo: ${pingTime}ms. Variação em relação ao último teste para este host: ${pingTime - previousPing}ms"
+                }
+                else {
+                    "Ping bem-sucedido para $host! Tempo: ${pingTime}ms"
+                }
             } else {
                 "Não foi possível alcançar o host $host. Código de saída: $exitCode"
             }
@@ -144,7 +161,7 @@ suspend fun testPing(host: String): String {
 
 
 @Composable
-fun ConnectivityTestScreen() {
+fun ConnectivityTestScreen(context: Context) {
     var url by remember { mutableStateOf(TextFieldValue()) }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
@@ -254,7 +271,7 @@ fun ConnectivityTestScreen() {
             onClick = {
                 coroutineScope.launch {
                     isPINGLoading = true
-                    pingStatus = testPing(host).toString()
+                    pingStatus = testPing(host, context)
                     isPINGLoading = false
                 }
             }
