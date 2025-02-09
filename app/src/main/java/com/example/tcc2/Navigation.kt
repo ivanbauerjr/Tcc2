@@ -42,7 +42,10 @@ fun Navigation(
             DNSScreen()
         }
         composable("NetworkDiagnosticsScreen") {
-            NetworkDiagnosticsScreen()
+            NetworkDiagnosticsScreen(navController = navController)
+        }
+        composable("NetworkDiagnosticsHistoryScreen") {
+            NetworkDiagnosticsHistoryScreen()
         }
         composable("RedesProximasScreen") {
             RedesProximasScreen()
