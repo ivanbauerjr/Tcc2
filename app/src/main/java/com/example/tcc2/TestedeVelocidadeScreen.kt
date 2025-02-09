@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -25,7 +28,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -63,8 +64,7 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.style.TextAlign
 
 
@@ -363,7 +363,20 @@ fun TestedeVelocidadeScreen(
     val testResults = remember { mutableStateOf(testResultManager.getTestResults()) }
     var showResultDialog by remember { mutableStateOf(false) }
     var testResultState by remember { mutableStateOf<TestResult?>(null) }
-    var feedbackMessage by remember { mutableStateOf("") }
+
+    val sharedPreferences = context.getSharedPreferences("speed_test_prefs", Context.MODE_PRIVATE)
+    var feedbackMessage by rememberSaveable {
+        mutableStateOf(sharedPreferences.getString("feedback_message", "") ?: "")
+    }
+
+    fun saveFeedbackMessage(message: String) {
+        sharedPreferences.edit().putString("feedback_message", message).apply()
+        feedbackMessage = message
+    }
+
+    fun clearFeedback() {
+        saveFeedbackMessage("")
+    }
 
     LaunchedEffect(Unit) {
         isFetchingLocation = true
@@ -412,7 +425,9 @@ fun TestedeVelocidadeScreen(
                         val servers = fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
                         availableServers = servers.take(5)
                         closestServer = availableServers.firstOrNull()
-                        closestServer?.let { serverManager.saveServer(it) }
+                        closestServer?.let { serverManager.saveServer(it)
+                        snackbarHostState.showSnackbar("Busca de servidores finalizada.")
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -427,7 +442,7 @@ fun TestedeVelocidadeScreen(
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = Alignment.Start
                     ) {
                         Text("Servidor Selecionado", style = MaterialTheme.typography.titleMedium)
                         Text("${server.name} (${server.sponsor})", style = MaterialTheme.typography.bodyMedium)
@@ -470,7 +485,9 @@ fun TestedeVelocidadeScreen(
 
             Button(
                 onClick = {
-                    navController.navigate("HistoricoVelocidadeScreen")
+                    navController.navigate("HistoricoVelocidadeScreen") {
+                        launchSingleTop = true
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -483,9 +500,13 @@ fun TestedeVelocidadeScreen(
                     progress = 0f
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Iniciando teste de velocidade...")
+                        snackbarHostState.showSnackbar("Medindo latência...")
                         val pingResult = performPing(URL(closestServer?.url).host)
+                        snackbarHostState.showSnackbar("Medindo velocidade do download...")
                         val downloadSpeedResult = measureDownloadSpeed(closestServer!!.url) { progress = it }
+                        snackbarHostState.showSnackbar("Medindo velocidade do upload...")
                         val uploadSpeedResult = measureUploadSpeed(closestServer!!.url) { progress = 0.5f + (it / 2f) }
+                        snackbarHostState.showSnackbar("Medição finalizada.")
 
                         val testResult = TestResult(
                             ping = pingResult,
@@ -506,11 +527,11 @@ fun TestedeVelocidadeScreen(
                                     "- Upload: ${testResultState?.uploadSpeed}"
                         } else {
                             "Mudança desde a última medição:\n" +
-                                    "- Ping: ${previousTest.ping} → ${testResult.ping}\n" +
-                                    "- Download: ${previousTest.downloadSpeed} → ${testResult.downloadSpeed}\n" +
-                                    "- Upload: ${previousTest.uploadSpeed} → ${testResult.uploadSpeed}"
+                                    "- Ping: ${previousTest.ping} → ${testResultState?.ping} \n ${if (testResultState!!.ping > previousTest.ping) "O ping aumentou, sua internet pode ter ficado mais lenta" else "O ping diminuiu, sua internet pode estar mais rápida"}\n" +
+                                    "- Download: ${previousTest.downloadSpeed} → ${testResultState?.downloadSpeed} \n ${if (testResultState!!.downloadSpeed > previousTest.downloadSpeed) "O download aumentou, você pode baixar os arquivos mais rapidamente" else "O download diminuiu, os arquivos podem levar mais tempo para serem baixados"}\n" +
+                                    "- Upload: ${previousTest.uploadSpeed} → ${testResultState?.uploadSpeed} \n ${if (testResultState!!.uploadSpeed < previousTest.uploadSpeed) "O upload diminuiu, podendo demorar mais tempo para subir arquivos na rede" else "O upload aumentou, permitindo enviar arquivos mais rapidamente"}"
                         }
-
+                        saveFeedbackMessage(feedbackMessage)
                         showResultDialog = true
                         progress = 1f
                         isTestRunning = false
@@ -524,14 +545,17 @@ fun TestedeVelocidadeScreen(
 
             if (feedbackMessage.isNotEmpty()) {
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp, max = 200.dp)
+                        .verticalScroll(rememberScrollState()),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text("Resultados obtidos", style = MaterialTheme.typography.titleMedium)
-                        Text(feedbackMessage, style = MaterialTheme.typography.bodyMedium)
+                        Text(feedbackMessage.replace("-", ""), style = MaterialTheme.typography.bodyMedium) //Em alguns casos está aparecendo -
                     }
                 }
             }
@@ -541,7 +565,7 @@ fun TestedeVelocidadeScreen(
 
 
 @Composable
-fun HistoricoVelocidadeScreen() {
+fun HistoricoVelocidadeScreen(clearFeedback: () -> Unit) {
     val context = LocalContext.current
     val testResultManager = remember { TestResultManager(context) }
     val results = remember { mutableStateOf(testResultManager.getTestResults()) }
@@ -554,6 +578,7 @@ fun HistoricoVelocidadeScreen() {
         Button(onClick = {
             context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
             results.value = emptyList() // Atualiza o estado para refletir a remoção dos dados
+            clearFeedback()
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
             }
@@ -574,7 +599,7 @@ fun HistoricoVelocidadeScreen() {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Download: ${result.downloadSpeed}", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Upload: ${result.uploadSpeed}", fontSize = 16.sp)
+                        Text("Upload: ${result.uploadSpeed.replace("-", "")}", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Servidor: ${result.serverInfo}", fontSize = 16.sp)
                     }

@@ -5,6 +5,7 @@ import DNSScreen
 import HistoricoEscaneamentoScreen
 import NetworkScanScreen
 import RoteadorScreen
+import android.content.Context
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +21,15 @@ fun Navigation(
     onGetUserLocation: (callback: (Double, Double) -> Unit) -> Unit
 ) {
     val navController = rememberNavController()
+
+    // Criar uma instância do contexto para acessar SharedPreferences
+    val context = LocalContext.current
+
+    // Função para limpar feedback do teste de velocidade
+    fun clearFeedback() {
+        val sharedPreferences = context.getSharedPreferences("speed_test_prefs", Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString("feedback_message", "").apply()
+    }
 
     NavHost(
         navController = navController,
@@ -54,7 +64,7 @@ fun Navigation(
             RoteadorScreen()
         }
         composable("HistoricoVelocidadeScreen") {
-            HistoricoVelocidadeScreen()
+            HistoricoVelocidadeScreen(clearFeedback = { clearFeedback() })
         }
         composable("ConnectivityTestScreen") {
             ConnectivityTestScreen(context = LocalContext.current)

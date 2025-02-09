@@ -100,22 +100,6 @@ fun NetworkInfoCard() {
     }
 }
 
-//@Composable
-//fun ActionButton(text: String, icon: ImageVector, route: String, navController: NavHostController) {
-//    Button(
-//        onClick = { navController.navigate(route) },
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .height(80.dp) // Increased height for thicker buttons
-//            .padding(vertical = 10.dp), // Adds space between buttons
-//        shape = RoundedCornerShape(12.dp) // Soft rounded corners
-//    ) {
-//        Icon(icon, contentDescription = text, modifier = Modifier.size(32.dp)) // Bigger icon
-//        Spacer(modifier = Modifier.width(12.dp))
-//        Text(text, fontSize = 20.sp) // Bigger font for better readability
-//    }
-//}
-
 fun getWifiSSID(context: Context): String? {
     val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val activeNetwork = connectivityManager.activeNetwork
