@@ -2,6 +2,7 @@ package com.example.tcc2
 
 import ConnectivityTestScreen
 import DNSScreen
+import HistoricoEscaneamentoScreen
 import NetworkScanScreen
 import RoteadorScreen
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +57,10 @@ fun Navigation(
             ConnectivityTestScreen(context = LocalContext.current)
         }
         composable("NetworkScanScreen") {
-            NetworkScanScreen(context = LocalContext.current)
+            NetworkScanScreen(navController = navController)
+        }
+        composable("HistoricoScanScreen") {
+            HistoricoEscaneamentoScreen()
         }
         composable("AdvancedOptionsScreen") {
             AdvancedOptionsScreen(navController = navController)

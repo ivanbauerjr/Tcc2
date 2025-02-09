@@ -9,12 +9,18 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -66,28 +72,86 @@ fun RoteadorScreen() {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Configurações do Roteador", fontSize = 35.sp, style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(40.dp))
-        Text(text = "Nome da Rede (SSID): $ssid", fontSize = 22.sp)
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(text = "Gateway IPv4: $gatewayIpv4", fontSize = 22.sp)
-        Text(text = "Gateway IPv6: $gatewayIpv6", fontSize = 22.sp)
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(text = "Status da Conexão: $connectionStatus", fontSize = 22.sp)
-        Spacer(modifier = Modifier.height(40.dp))
+        Text(
+            text = "Configurações do Roteador",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                InfoRow(label = "Nome da Rede (SSID)", value = ssid)
+                InfoRow(label = "Gateway IPv4", value = gatewayIpv4)
+                InfoRow(label = "Gateway IPv6", value = gatewayIpv6)
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Status da Conexão:",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(
+                                color = if (connectionStatus == "Acessível") Color.Green else Color.Red,
+                                shape = CircleShape
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = connectionStatus, fontSize = 18.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(30.dp))
+
         Button(
             onClick = { openRouterPage(context, gatewayIpv4) },
             enabled = gatewayIpv4 != "Desconhecido" && gatewayIpv4.isNotEmpty(),
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
-            Text("Abrir Página do Roteador", fontSize = 22.sp)
+            Text("Abrir Página do Roteador", fontSize = 18.sp)
         }
     }
 }
+
+@Composable
+fun InfoRow(label: String, value: String) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text(
+            text = label,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = value,
+            fontSize = 18.sp,
+            color = Color.Gray
+        )
+    }
+}
+
 
 fun openRouterPage(context: Context, gateway: String) {
     try {
