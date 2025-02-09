@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.ui.Alignment
 import com.example.tcc2.ui.theme.ActionButton
 
 
@@ -50,6 +51,14 @@ fun MainScreen(
     navController: NavHostController,
     onLocationDetermined: KFunction2<Double, Double, Unit>,
 ) {
+    val context = LocalContext.current
+    val historyManager = remember { NetworkDiagnosticsHistoryManager(context) }
+    var latestFeedback by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        latestFeedback = historyManager.getLatestFeedback()
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = { Text("Monitor de Rede") }) }
     ) { padding ->
@@ -58,18 +67,23 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Top, // Keeps items at the top
+            verticalArrangement = Arrangement.Top,
             horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
         ) {
-            // Display WiFi SSID and Network Status
+            // Exibe SSID e status da rede
             NetworkInfoCard()
 
-            Spacer(modifier = Modifier.height(24.dp)) // Space between card and buttons
+            Spacer(modifier = Modifier.height(24.dp)) // Espaço entre feedback e botões
 
-            // Buttons
+            // Botões
             ActionButton("Diagnóstico de Rede", Icons.Default.Build, "NetworkDiagnosticsScreen", navController)
             ActionButton("Velocidade da Internet", Icons.Default.Speed, "TestedeVelocidadeScreen", navController)
             ActionButton("Opções Avançadas", Icons.Default.Settings, "AdvancedOptionsScreen", navController)
+
+            // Exibe o último feedback do diagnóstico
+            if (latestFeedback.isNotEmpty()) {
+                FeedbackCard(feedbackMessages = latestFeedback)
+            }
         }
     }
 }
@@ -88,14 +102,37 @@ fun NetworkInfoCard() {
             .fillMaxWidth()
             .padding(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(12.dp) // Rounded edges for a modern look
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Rede Conectada", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(ssid, fontSize = 18.sp, color = Color.Gray)
+        }
+    }
+}
+
+@Composable
+fun FeedbackCard(feedbackMessages: List<String>) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(" \uD83D\uDCCA Últi" +
+                    "mo diagnóstico realizado", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            feedbackMessages.forEach { message ->
+                Text("- $message", fontSize = 16.sp, color = Color.DarkGray)
+            }
         }
     }
 }
@@ -110,10 +147,11 @@ fun getWifiSSID(context: Context): String? {
         val wifiInfo: WifiInfo? = wifiManager.connectionInfo
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            wifiInfo?.ssid?.removeSurrounding("\"") // Removes surrounding quotes
+            wifiInfo?.ssid?.removeSurrounding("\"")
         } else {
             wifiInfo?.ssid
         }
     }
     return "Desconhecido"
 }
+

@@ -23,13 +23,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 
 data class NetworkDiagnosticsResult(
     val timestamp: String,
     val devicesConnected: String,
     val pingResults: String,
     val wifiStrength: String,
-    val dnsResolution: String
+    val dnsResolution: String,
+    val networkCongestion: String,
+    val routerStatus: String
 )
 
 class NetworkDiagnosticsHistoryManager(context: Context) {
@@ -37,12 +42,12 @@ class NetworkDiagnosticsHistoryManager(context: Context) {
         context.getSharedPreferences("network_diagnostics_history", Context.MODE_PRIVATE)
     private val gson = Gson()
     private val key = "history"
+    private val feedbackKey = "latest_feedback"
 
     fun saveResult(result: NetworkDiagnosticsResult) {
         val currentHistory = getHistory().toMutableList()
-        currentHistory.add(0, result) // Add newest result at the top
+        currentHistory.add(0, result)
 
-        // Limit to the last 10 results for history storage
         if (currentHistory.size > 10) {
             currentHistory.removeAt(currentHistory.size - 1)
         }
@@ -62,8 +67,20 @@ class NetworkDiagnosticsHistoryManager(context: Context) {
 
     fun clearHistory() {
         sharedPreferences.edit().remove(key).apply()
+        sharedPreferences.edit().remove(feedbackKey).apply()
+    }
+
+    fun saveLatestFeedback(feedback: List<String>) {
+        val json = gson.toJson(feedback)
+        sharedPreferences.edit().putString(feedbackKey, json).apply()
+    }
+
+    fun getLatestFeedback(): List<String> {
+        val json = sharedPreferences.getString(feedbackKey, "[]") ?: "[]"
+        return gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
     }
 }
+
 
 @ExperimentalMaterial3Api
 @Composable
@@ -71,12 +88,18 @@ fun NetworkDiagnosticsScreen(navController: NavController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val historyManager = remember { NetworkDiagnosticsHistoryManager(context) }
-    var latestResult by remember { mutableStateOf<NetworkDiagnosticsResult?>(historyManager.getLatestResult()) }
 
-    var connectedDevices by remember { mutableStateOf(latestResult?.devicesConnected ?: "") }
-    var pingResults by remember { mutableStateOf(latestResult?.pingResults ?: "") }
-    var wifiSignalStrength by remember { mutableStateOf(latestResult?.wifiStrength ?: "") }
-    var dnsResolution by remember { mutableStateOf(latestResult?.dnsResolution ?: "") }
+    var latestResult by remember { mutableStateOf(historyManager.getLatestResult()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
+    var feedbackMessages by remember { mutableStateOf(emptyList<String>()) }
+
+    var connectedDevices by remember { mutableStateOf(latestResult?.devicesConnected ?: "Aguardando diagnóstico...") }
+    var wifiSignalStrength by remember { mutableStateOf(latestResult?.wifiStrength ?: "Aguardando diagnóstico...") }
+    var dnsResolution by remember { mutableStateOf(latestResult?.dnsResolution ?: "Aguardando diagnóstico...") }
+    var unstableConnection by remember { mutableStateOf(latestResult?.pingResults ?: "Aguardando diagnóstico...") }
+    var networkCongestion by remember { mutableStateOf(latestResult?.networkCongestion ?: "Aguardando diagnóstico...") }
+    var routerStatus by remember { mutableStateOf(latestResult?.routerStatus ?: "Aguardando diagnóstico...") }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Diagnóstico de Rede") }) }
@@ -90,56 +113,264 @@ fun NetworkDiagnosticsScreen(navController: NavController) {
         ) {
             Text("Último Resultado Obtido", style = MaterialTheme.typography.headlineMedium)
 
-            DiagnosticResult(label = "Dispositivos Conectados", value = connectedDevices)
-            DiagnosticResult(label = "Testes de Conectividade", value = pingResults)
-            DiagnosticResult(label = "Intensidade do WiFi", value = wifiSignalStrength)
-            DiagnosticResult(label = "Resolução de DNS", value = dnsResolution)
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { DiagnosticResult(label = "Dispositivos Conectados", value = connectedDevices) }
+                item { DiagnosticResult(label = "Intensidade do WiFi", value = wifiSignalStrength) }
+                item { DiagnosticResult(label = "Resolução de DNS", value = dnsResolution) }
+                item { DiagnosticResult(label = "Estabilidade da Rede", value = unstableConnection) }
+                item { DiagnosticResult(label = "Congestionamento de Rede", value = networkCongestion) }
+                item { DiagnosticResult(label = "Status do Roteador", value = routerStatus) }
+            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            if (isLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Executando diagnóstico...", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = {
-                    coroutineScope.launch {
-                        val devices = countConnectedDevices(context).toString()
-                        val pings = performMultiplePings()
-                        val wifiSignal = getWifiSignalStrength(context)
-                        val dns = if (resolveDNS("google.com")) "Resolvido com sucesso" else "Falha na resolução"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    modifier = Modifier.weight(2f),
+                    onClick = {
+                        coroutineScope.launch {
+                            isLoading = true
 
-                        connectedDevices = devices
-                        pingResults = pings
-                        wifiSignalStrength = wifiSignal
-                        dnsResolution = dns
+                            val newConnectedDevices = countConnectedDevices(context).toString()
+                            val newWifiSignalStrength = getWifiSignalStrength(context)
+                            val newDnsResolution = if (resolveDNS("google.com")) "Resolvido com sucesso" else "Falha na resolução"
+                            val newUnstableConnection = analyzeUnstableConnection()
+                            val newNetworkCongestion = analyzeNetworkCongestion()
+                            val newRouterStatus = checkRouterStatus(context)
 
-                        val newResult = NetworkDiagnosticsResult(
-                            timestamp = getCurrentTimestamp(),
-                            devicesConnected = devices,
-                            pingResults = pings,
-                            wifiStrength = wifiSignal,
-                            dnsResolution = dns
-                        )
+                            connectedDevices = newConnectedDevices
+                            wifiSignalStrength = newWifiSignalStrength
+                            dnsResolution = newDnsResolution
+                            unstableConnection = newUnstableConnection
+                            networkCongestion = newNetworkCongestion
+                            routerStatus = newRouterStatus
 
-                        // Save the latest result
-                        historyManager.saveResult(newResult)
-                        latestResult = newResult
+                            val previousFeedback = historyManager.getLatestFeedback()
+
+                            feedbackMessages = if (latestResult == null) {
+                                // PRIMEIRA MEDIÇÃO: Exibir todos os resultados como feedback inicial
+                                listOf(
+                                    "Dispositivos Conectados: $newConnectedDevices",
+                                    "Intensidade do WiFi: $newWifiSignalStrength",
+                                    "Resolução de DNS: $newDnsResolution",
+                                    " $newUnstableConnection",
+                                    " $newNetworkCongestion",
+                                    " $newRouterStatus"
+                                )
+                            } else {
+                                // COMPARAR RESULTADOS: Exibir somente mudanças
+                                generateFeedback(
+                                    latestResult,
+                                    newConnectedDevices,
+                                    newWifiSignalStrength,
+                                    newDnsResolution,
+                                    newUnstableConnection,
+                                    newNetworkCongestion,
+                                    newRouterStatus
+                                ).ifEmpty { listOf("A rede permaneceu estável.") }
+                            }
+
+                            historyManager.saveLatestFeedback(feedbackMessages)
+
+                            if (feedbackMessages.isNotEmpty()) {
+                                showFeedbackDialog = true
+                            }
+
+                            val newResult = NetworkDiagnosticsResult(
+                                timestamp = getCurrentTimestamp(),
+                                devicesConnected = newConnectedDevices,
+                                pingResults = newUnstableConnection,
+                                wifiStrength = newWifiSignalStrength,
+                                dnsResolution = newDnsResolution,
+                                networkCongestion = newNetworkCongestion,
+                                routerStatus = newRouterStatus
+                            )
+
+                            historyManager.saveResult(newResult)
+                            latestResult = newResult
+
+                            isLoading = false
+                        }
                     }
-                }) {
+                ) {
                     Text("Realizar Diagnóstico")
                 }
 
-                Button(onClick = { navController.navigate("NetworkDiagnosticsHistoryScreen") }) {
+                Button(
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate("NetworkDiagnosticsHistoryScreen") }
+                ) {
                     Text("Histórico")
                 }
             }
+        }
+    }
+
+    if (showFeedbackDialog) {
+        AlertDialog(
+            onDismissRequest = { showFeedbackDialog = false },
+            title = { Text("Diagnóstico da Rede") },
+            text = {
+                Column {
+                    feedbackMessages.forEach { message ->
+                        Text("- $message", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showFeedbackDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+}
+
+
+suspend fun analyzeUnstableConnection(): String {
+    return withContext(Dispatchers.IO) {
+        val host = "8.8.8.8"
+        val pingCount = 10
+        val responseTimes = mutableListOf<Long>()
+        var packetLoss = 0
+
+        try {
+            for (i in 1..pingCount) {
+                val startTime = System.currentTimeMillis()
+
+                val process = Runtime.getRuntime().exec("ping -c 1 -s 32 $host") // Ping com pacote pequeno (32 bytes)
+                val exitCode = process.waitFor()
+                val elapsedTime = System.currentTimeMillis() - startTime
+
+                if (exitCode == 0) {
+                    responseTimes.add(elapsedTime)
+                } else {
+                    packetLoss++
+                }
+
+                delay(500)  // Pequeno intervalo entre pings
+            }
+
+            if (responseTimes.isEmpty()) {
+                return@withContext "Erro ao coletar dados"
+            }
+
+            // Cálculo de jitter (diferença entre máximo e mínimo)
+            val jitter = responseTimes.maxOrNull()?.minus(responseTimes.minOrNull() ?: 0) ?: 0
+
+            return@withContext when {
+                packetLoss > 2 -> "Perda de pacotes alta ($packetLoss pacotes perdidos)"
+                jitter > 100 -> "Conexão instável (Jitter alto: ${jitter} ms)"
+                else -> "Conexão estável"
+            }
+        } catch (e: Exception) {
+            return@withContext "Erro ao analisar conexão: ${e.message}"
+        }
+    }
+}
+
+suspend fun analyzeNetworkCongestion(): String {
+    return withContext(Dispatchers.IO) {
+        val host = "8.8.8.8"
+        val normalPingTimes = mutableListOf<Long>()
+        val largePacketPingTimes = mutableListOf<Long>()
+
+        try {
+            // Ping normal (56 bytes)
+            for (i in 1..5) {
+                val startTime = System.currentTimeMillis()
+
+                val process = Runtime.getRuntime().exec("ping -c 1 -s 56 $host")
+                val exitCode = process.waitFor()
+                val elapsedTime = System.currentTimeMillis() - startTime
+
+                if (exitCode == 0) {
+                    normalPingTimes.add(elapsedTime)
+                }
+
+                delay(500)
+            }
+
+            // Ping com pacote grande (1000 bytes)
+            for (i in 1..5) {
+                val startTime = System.currentTimeMillis()
+
+                val process = Runtime.getRuntime().exec("ping -c 1 -s 1000 $host")
+                val exitCode = process.waitFor()
+                val elapsedTime = System.currentTimeMillis() - startTime
+
+                if (exitCode == 0) {
+                    largePacketPingTimes.add(elapsedTime)
+                }
+
+                delay(500)
+            }
+
+            if (normalPingTimes.isEmpty() || largePacketPingTimes.isEmpty()) {
+                return@withContext "Erro ao coletar dados"
+            }
+
+            val avgNormalPing = normalPingTimes.average()
+            val avgLargePacketPing = largePacketPingTimes.average()
+            val latencyIncrease = avgLargePacketPing - avgNormalPing
+
+            return@withContext when {
+                avgNormalPing > 150 -> "Alta latência detectada (${avgNormalPing.toInt()} ms)"
+                latencyIncrease > 50 -> "Possível congestionamento detectado (Diferença: ${latencyIncrease.toInt()} ms)"
+                else -> "Nenhum congestionamento detectado"
+            }
+        } catch (e: Exception) {
+            return@withContext "Erro ao verificar congestionamento: ${e.message}"
+        }
+    }
+}
+
+suspend fun checkRouterStatus(context: Context): String {
+    return withContext(Dispatchers.IO) {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val gatewayIp = wifiManager.dhcpInfo.gateway
+        val routerAddress = InetAddress.getByAddress(byteArrayOf(
+            (gatewayIp and 0xFF).toByte(),
+            (gatewayIp shr 8 and 0xFF).toByte(),
+            (gatewayIp shr 16 and 0xFF).toByte(),
+            (gatewayIp shr 24 and 0xFF).toByte()
+        ))
+
+        return@withContext if (routerAddress.isReachable(3000)) {
+            "Roteador funcionando normalmente"
+        } else {
+            "Problema no roteador"
         }
     }
 }
 
 @Composable
 fun DiagnosticResult(label: String, value: String) {
-    Card(modifier = Modifier.fillMaxWidth().padding(4.dp), elevation = CardDefaults.cardElevation(4.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(4.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = label, style = MaterialTheme.typography.bodyLarge)
-            Text(text = if (value.isNotEmpty()) value else "Aguardando diagnóstico...",
+            Text(text = value,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary)
         }
@@ -179,20 +410,6 @@ fun countConnectedDevices(context: Context): Int {
     return devices.size
 }
 
-suspend fun performMultiplePings(): String {
-    return withContext(Dispatchers.IO) {
-        val testHosts = listOf("8.8.8.8", "1.1.1.1", "google.com", "facebook.com")
-        val results = mutableListOf<String>()
-
-        for (host in testHosts) {
-            val process = Runtime.getRuntime().exec("ping -c 1 $host")
-            val exitCode = process.waitFor()
-            results.add("$host: ${if (exitCode == 0) "Sucesso" else "Falhou"}")
-        }
-        results.joinToString("\n")
-    }
-}
-
 fun getWifiSignalStrength(context: Context): String {
     val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     val rssi = wifiManager.connectionInfo.rssi
@@ -219,6 +436,65 @@ suspend fun resolveDNS(domain: String): Boolean {
 fun getCurrentTimestamp(): String {
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
     return sdf.format(Date())
+}
+
+fun extractSignalQuality(signalStrength: String): String {
+    return when {
+        signalStrength.contains("Ótima", ignoreCase = true) -> "Ótima"
+        signalStrength.contains("Boa", ignoreCase = true) -> "Boa"
+        signalStrength.contains("Moderada", ignoreCase = true) -> "Moderada"
+        signalStrength.contains("Fraca", ignoreCase = true) -> "Fraca"
+        signalStrength.contains("Muito fraca", ignoreCase = true) -> "Muito fraca"
+        else -> signalStrength // Se não for identificado, retorna como está
+    }
+}
+
+fun generateFeedback(
+    lastResult: NetworkDiagnosticsResult?,
+    newDevices: String,
+    newWifi: String,
+    newDns: String,
+    newUnstable: String,
+    newCongestion: String,
+    newRouter: String
+): List<String> {
+    val feedback = mutableListOf<String>()
+
+    lastResult?.let {
+        // Dispositivos conectados
+        if (it.devicesConnected != newDevices) {
+            val diff = newDevices.toInt() - it.devicesConnected.toInt()
+            if (diff > 0) feedback.add("A quantidade de dispositivos conectados aumentou (+$diff).")
+            else feedback.add("A quantidade de dispositivos conectados diminuiu (${diff * -1}).")
+        }
+
+        // Intensidade do WiFi - Apenas se houver alteração significativa
+        if (it.wifiStrength != newWifi) {
+            val previousQuality = extractSignalQuality(it.wifiStrength)
+            val newQuality = extractSignalQuality(newWifi)
+
+            if (previousQuality != newQuality) {
+                feedback.add("A intensidade do sinal mudou de '$previousQuality' para '$newQuality'.")
+            }
+        }
+
+        // Conexão Instável
+        if (it.pingResults != newUnstable) {
+            feedback.add("A conexão mudou: '$newUnstable'.")
+        }
+
+        // Congestionamento de Rede
+        if (it.networkCongestion != newCongestion) {
+            feedback.add("O status mudou: '$newCongestion'.")
+        }
+
+        // Status do Roteador
+        if (it.routerStatus != newRouter) {
+            feedback.add("O status do roteador mudou: '$newRouter'.")
+        }
+    }
+
+    return feedback
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -260,9 +536,11 @@ fun NetworkDiagnosticsHistoryScreen() {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text("Data: ${result.timestamp}")
                                 Text("Dispositivos Conectados: ${result.devicesConnected}")
-                                Text("WiFi: ${result.wifiStrength}")
+                                Text("Intensidade do sinal: ${result.wifiStrength}")
                                 Text("DNS: ${result.dnsResolution}")
-                                Text("Ping: ${result.pingResults}")
+                                Text(" ${result.pingResults}")
+                                Text(" ${result.networkCongestion}")
+                                Text(" ${result.routerStatus}")
                             }
                         }
                     }
