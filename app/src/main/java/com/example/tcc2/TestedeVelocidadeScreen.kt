@@ -63,12 +63,34 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+
+
+class ServerManager(context: Context) {
+    private val sharedPreferences: SharedPreferences =
+        context.getSharedPreferences("server_prefs", Context.MODE_PRIVATE)
+    private val gson = Gson()
+    private val serverKey = "last_selected_server"
+
+    fun saveServer(server: Server) {
+        val json = gson.toJson(server)
+        sharedPreferences.edit().putString(serverKey, json).apply()
+    }
+
+    fun getLastSelectedServer(): Server? {
+        val json = sharedPreferences.getString(serverKey, null) ?: return null
+        return gson.fromJson(json, object : TypeToken<Server>() {}.type)
+    }
+}
 
 data class TestResult(
     val ping: String,
     val downloadSpeed: String,
     val uploadSpeed: String,
-    val timestamp: String
+    val timestamp: String,
+    val serverInfo: String
 )
 
 class TestResultManager(context: Context) {
@@ -135,9 +157,9 @@ suspend fun performPing(hostname: String): String {
 
             if (results.isNotEmpty()) {
                 val average = results.average()
-                "Average Ping: ${round(average, 2)}ms"
+                "${round(average, 2)}ms"
             } else {
-                "Failed to get ping results."
+                "Falha ao obter resultados de ping."
             }
         } catch (e: Exception) {
             Log.e("Ping", "Ping execution failed", e)
@@ -233,7 +255,7 @@ suspend fun measureDownloadSpeed(
         // Calculate download speed in Mbps
         val downloadSpeedMbps = (downloadedBytes * 8) / (1_000_000.0 * elapsedTimeSeconds)
         onProgressUpdate(1f) // Update progress to 100% at the end
-        "Download Speed: ${round(downloadSpeedMbps, 2)} Mbps"
+        "${round(downloadSpeedMbps, 2)} Mbps"
     }
 }
 
@@ -297,7 +319,7 @@ suspend fun measureUploadSpeed(serverUrl: String, onProgressUpdate: (Float) -> U
         jobs.joinAll() // Wait for all workers to complete
         val elapsedTimeSeconds = (System.currentTimeMillis() - startTime) / 1000.0
         val uploadSpeedMbps = (uploadedBytes * 8) / (1_000_000.0 * elapsedTimeSeconds)
-        "Upload Speed: ${round(uploadSpeedMbps, 2)} Mbps"
+        "${round(uploadSpeedMbps, 2)} Mbps"
     }
 }
 
@@ -326,36 +348,35 @@ fun TestedeVelocidadeScreen(
     onGetUserLocation: ((Double, Double) -> Unit) -> Unit,
     navController: NavController
 ) {
+    val context = LocalContext.current
     var isTestRunning by remember { mutableStateOf(false) }
+    val serverManager = remember { ServerManager(context) }
     var progress by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
     var userLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
-    var closestServer by remember { mutableStateOf<Server?>(null) }
+    var closestServer by remember { mutableStateOf<Server?>(serverManager.getLastSelectedServer()) }
     var availableServers by remember { mutableStateOf<List<Server>>(emptyList()) }
     var isFetchingLocation by remember { mutableStateOf(false) }
     var isServerDialogVisible by remember { mutableStateOf(false) }
-    var locationErrorMessage by remember { mutableStateOf<String?>(null) }
-    val location by locationViewModel.location.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-
     val testResultManager = TestResultManager(LocalContext.current)
-
+    val testResults = remember { mutableStateOf(testResultManager.getTestResults()) }
     var showResultDialog by remember { mutableStateOf(false) }
     var testResultState by remember { mutableStateOf<TestResult?>(null) }
+    var feedbackMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         isFetchingLocation = true
         onGetUserLocation { lat, lon ->
             userLocation = Pair(lat, lon)
             isFetchingLocation = false
-            locationErrorMessage = null
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Medição de Velocidade") }
+                title = { Text("Velocidade da Internet") }
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -365,48 +386,39 @@ fun TestedeVelocidadeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Top
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Exibe a localização do usuário
-            Text(
-                text = location?.let { "Localização: ${it.first}, ${it.second}" } ?: "Localização indisponível",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            locationErrorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Localização do Usuário", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        userLocation?.let { "Lat: ${it.first}, Lon: ${it.second}" } ?: "Obtendo localização...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             Button(
                 onClick = {
                     coroutineScope.launch {
-                        isTestRunning = true
-                        snackbarHostState.showSnackbar("Buscando servidores, aguarde...")
-
+                        snackbarHostState.showSnackbar("Buscando servidores...")
                         val servers = fetchServersWithLatency(userLocation!!.first, userLocation!!.second)
                         availableServers = servers.take(5)
-
-                        if (availableServers.isNotEmpty()) {
-                            closestServer = availableServers.first()
-                            snackbarHostState.showSnackbar("Melhor servidor selecionado: ${closestServer?.name}")
-                        } else {
-                            snackbarHostState.showSnackbar("Nenhum servidor disponível!")
-                        }
-
-                        isTestRunning = false
+                        closestServer = availableServers.firstOrNull()
+                        closestServer?.let { serverManager.saveServer(it) }
                     }
                 },
-                enabled = userLocation != null && !isTestRunning
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Buscar servidores", fontSize = 18.sp)
+                Text("Buscar Servidores")
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             closestServer?.let { server ->
                 Card(
@@ -417,125 +429,113 @@ fun TestedeVelocidadeScreen(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Servidor Selecionado", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("${server.name} (${server.sponsor})", fontSize = 16.sp)
-                        Text("Latência: ${server.latency} ms", fontSize = 16.sp)
-                        Text("Distância: ${round(server.distance, 2)} km", fontSize = 16.sp)
+                        Text("Servidor Selecionado", style = MaterialTheme.typography.titleMedium)
+                        Text("${server.name} (${server.sponsor})", style = MaterialTheme.typography.bodyMedium)
+                        Text("Latência: ${server.latency} ms", style = MaterialTheme.typography.bodyMedium)
+                        Text("Distância: ${round(server.distance, 2)} km", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Button(
                     onClick = { isServerDialogVisible = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Selecionar outro servidor", fontSize = 16.sp)
+                    Text("Selecionar outro Servidor")
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            closestServer?.let { server ->
-                Button(
-                    onClick = {
-                        isTestRunning = true
-                        progress = 0f
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Iniciando teste de velocidade...")
-
-                            val serverHost = URL(closestServer?.url).host
-                            val pingResult = performPing(serverHost)
-                            val downloadSpeedResult =
-                                measureDownloadSpeed(server.url) { currentProgress ->
-                                    progress = currentProgress
+            if (isServerDialogVisible) {
+                AlertDialog(
+                    onDismissRequest = { isServerDialogVisible = false },
+                    title = { Text("Escolha um Servidor") },
+                    text = {
+                        Column {
+                            availableServers.sortedBy { it.latency }.forEach { server ->
+                                TextButton(
+                                    onClick = {
+                                        closestServer = server
+                                        isServerDialogVisible = false
+                                    }
+                                ) {
+                                    Text("${server.name} (${server.sponsor}) - Latência: ${server.latency} ms")
                                 }
-                            val uploadSpeedResult =
-                                measureUploadSpeed(server.url) { currentProgress ->
-                                    progress = 0.5f + (currentProgress / 2f)
-                                }
-
-                            testResultState = TestResult(
-                                ping = pingResult,
-                                downloadSpeed = downloadSpeedResult,
-                                uploadSpeed = uploadSpeedResult,
-                                timestamp = formatTimestamp(System.currentTimeMillis().toString())
-                            )
-
-                            testResultManager.saveTestResult(testResultState!!)
-
-                            showResultDialog = true
-
-                            progress = 1f
-                            isTestRunning = false
+                            }
                         }
                     },
-                    enabled = !isTestRunning
-                ) {
-                    Text(text = if (isTestRunning) "Medindo..." else "Começar Teste", fontSize = 18.sp)
-                }
+                    confirmButton = {
+                        TextButton(onClick = { isServerDialogVisible = false }) { Text("Cancelar") }
+                    }
+                )
             }
-
-            Spacer(modifier = Modifier.height(50.dp))
 
             Button(
-                onClick = { navController.navigate("HistoricoVelocidadeScreen") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
+                onClick = {
+                    navController.navigate("HistoricoVelocidadeScreen")
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Histórico de Testes", fontSize = 18.sp)
+                Text("Histórico de Testes")
             }
-        }
-    }
 
-    if (isServerDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isServerDialogVisible = false },
-            title = { Text("Escolha um servidor") },
-            text = {
-                Column {
-                    availableServers.sortedBy { it.latency }.forEach { server ->
-                        TextButton(
-                            onClick = {
-                                closestServer = server
-                                isServerDialogVisible = false
-                            }
-                        ) {
-                            Text(
-                                text = "${server.name} (${server.sponsor}) - Latência: ${server.latency} ms",
-                                fontSize = 14.sp
-                            )
+            Button(
+                onClick = {
+                    isTestRunning = true
+                    progress = 0f
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Iniciando teste de velocidade...")
+                        val pingResult = performPing(URL(closestServer?.url).host)
+                        val downloadSpeedResult = measureDownloadSpeed(closestServer!!.url) { progress = it }
+                        val uploadSpeedResult = measureUploadSpeed(closestServer!!.url) { progress = 0.5f + (it / 2f) }
+
+                        val testResult = TestResult(
+                            ping = pingResult,
+                            downloadSpeed = downloadSpeedResult,
+                            uploadSpeed = uploadSpeedResult,
+                            timestamp = formatTimestamp(System.currentTimeMillis().toString()),
+                            serverInfo = "${closestServer!!.name} (${closestServer!!.sponsor})"
+                        )
+                        testResultManager.saveTestResult(testResult)
+                        testResults.value = testResultManager.getTestResults()
+                        testResultState = testResult
+
+                        val previousTest = testResults.value.drop(1).find { it.serverInfo == testResultState?.serverInfo }
+                        feedbackMessage = if (previousTest == null) {
+                            "Primeira medição neste servidor.\n" +
+                                    "- Ping: ${testResultState?.ping}\n" +
+                                    "- Download: ${testResultState?.downloadSpeed}\n" +
+                                    "- Upload: ${testResultState?.uploadSpeed}"
+                        } else {
+                            "Mudança desde a última medição:\n" +
+                                    "- Ping: ${previousTest.ping} → ${testResult.ping}\n" +
+                                    "- Download: ${previousTest.downloadSpeed} → ${testResult.downloadSpeed}\n" +
+                                    "- Upload: ${previousTest.uploadSpeed} → ${testResult.uploadSpeed}"
                         }
+
+                        showResultDialog = true
+                        progress = 1f
+                        isTestRunning = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isTestRunning
+            ) {
+                Text(if (isTestRunning) "Testando..." else "Iniciar Teste")
+            }
+
+            if (feedbackMessage.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text("Resultados obtidos", style = MaterialTheme.typography.titleMedium)
+                        Text(feedbackMessage, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { isServerDialogVisible = false }) {
-                    Text("Cancelar")
-                }
             }
-        )
-    }
-
-    if (showResultDialog && testResultState != null) {
-        AlertDialog(
-            onDismissRequest = { showResultDialog = false },
-            title = { Text("Resultado do Teste de Velocidade") },
-            text = {
-                Column {
-                    Text("Ping: ${testResultState?.ping}")
-                    Text("Download: ${testResultState?.downloadSpeed}")
-                    Text("Upload: ${testResultState?.uploadSpeed}")
-                    Text("Data: ${testResultState?.timestamp}")
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showResultDialog = false }) {
-                    Text("OK")
-                }
-            }
-        )
+        }
     }
 }
 
@@ -570,11 +570,13 @@ fun HistoricoVelocidadeScreen() {
                     Column(modifier = Modifier.padding(8.dp)) {
                         Text("Data: ${result.timestamp}", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(result.ping, fontSize = 16.sp)
+                        Text("Ping: ${result.ping}", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(result.downloadSpeed, fontSize = 16.sp)
+                        Text("Download: ${result.downloadSpeed}", fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(result.uploadSpeed, fontSize = 16.sp)
+                        Text("Upload: ${result.uploadSpeed}", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Servidor: ${result.serverInfo}", fontSize = 16.sp)
                     }
                 }
             }
