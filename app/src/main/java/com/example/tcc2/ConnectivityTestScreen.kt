@@ -35,19 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
-import java.io.IOException
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
-import java.net.UnknownHostException
 
 // Função para adicionar o protocolo HTTP automaticamente
 fun getUrlWithProtocol(url: String): String {
@@ -192,7 +189,8 @@ suspend fun testPing(host: String, context: Context): String {
 @Composable
 fun ConnectivityTestScreen(context: Context) {
     var url by remember { mutableStateOf("") }
-    var host by remember { mutableStateOf("") }
+    var tcpHost by remember { mutableStateOf("") }
+    var pingHost by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
     var httpResult by remember { mutableStateOf("") }
     var tcpResult by remember { mutableStateOf("") }
@@ -251,8 +249,8 @@ fun ConnectivityTestScreen(context: Context) {
             item {
                 ConnectivityCard(title = "Teste TCP") {
                     OutlinedTextField(
-                        value = host,
-                        onValueChange = { host = it },
+                        value = tcpHost,
+                        onValueChange = { tcpHost = it },
                         label = { Text("Digite o Host") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -271,11 +269,11 @@ fun ConnectivityTestScreen(context: Context) {
                         onClick = {
                             coroutineScope.launch {
                                 isTcpLoading = true
-                                tcpResult = testTcpConnectivity(host, port)
+                                tcpResult = testTcpConnectivity(tcpHost, port)
                                 isTcpLoading = false
                             }
                         },
-                        enabled = host.isNotEmpty() && port.isNotEmpty(),
+                        enabled = tcpHost.isNotEmpty() && port.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (isTcpLoading) {
@@ -291,8 +289,8 @@ fun ConnectivityTestScreen(context: Context) {
             item {
                 ConnectivityCard(title = "Teste de Ping") {
                     OutlinedTextField(
-                        value = host,
-                        onValueChange = { host = it },
+                        value = pingHost,
+                        onValueChange = { pingHost = it },
                         label = { Text("Digite o Host") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -302,11 +300,11 @@ fun ConnectivityTestScreen(context: Context) {
                         onClick = {
                             coroutineScope.launch {
                                 isPingLoading = true
-                                pingResult = testPing(host, context)
+                                pingResult = testPing(pingHost, context)
                                 isPingLoading = false
                             }
                         },
-                        enabled = host.isNotEmpty(),
+                        enabled = pingHost.isNotEmpty(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (isPingLoading) {
