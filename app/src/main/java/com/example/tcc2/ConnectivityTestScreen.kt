@@ -2,16 +2,29 @@
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,22 +32,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import java.net.UnknownHostException
 
 // Função para adicionar o protocolo HTTP automaticamente
 fun getUrlWithProtocol(url: String): String {
-    return if (url.startsWith("http://") || url.startsWith("https://")) {
-        url
-    } else {
-        "http://$url" // Adiciona "http://" por padrão se o protocolo não estiver presente
+    return when {
+        url.startsWith("http://") || url.startsWith("https://") -> url
+        url.startsWith("www.") -> "http://$url"
+        else -> "http://$url" // Adiciona "http://" por padrão se o protocolo não estiver presente
     }
 }
 
@@ -138,20 +158,29 @@ suspend fun testPing(host: String, context: Context): String {
             val startTime = System.currentTimeMillis()
             val process = Runtime.getRuntime().exec("ping -c 1 $host")
             val exitCode = process.waitFor()
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val output = reader.readText().trim().lowercase() // Normaliza a saída
             val endTime = System.currentTimeMillis()
             val pingTime = endTime - startTime
 
-            return@withContext if (exitCode == 0) {
-                val previousPing = getPreviousPingResult(context, host)
-                savePingResult(context, host, pingTime)
-                if (previousPing != null) {
-                    "Ping bem-sucedido para $host! Tempo: ${pingTime}ms. Variação em relação ao último teste para este host: ${pingTime - previousPing}ms"
+            return@withContext when {
+                exitCode == 0 -> {
+                    val previousPing = getPreviousPingResult(context, host)
+                    savePingResult(context, host, pingTime)
+                    if (previousPing != null) {
+                        "Ping bem-sucedido para $host!\n Tempo: ${pingTime}ms.\n Variação em relação ao último teste: ${pingTime - previousPing}ms"
+                    } else {
+                        "Ping bem-sucedido para $host!\n Tempo: ${pingTime}ms"
+                    }
                 }
-                else {
-                    "Ping bem-sucedido para $host! Tempo: ${pingTime}ms"
+                exitCode == 1 -> when {
+                    output.contains("0 received") || output.contains("100% packet loss") ->
+                        "O host $host não respondeu ao ping."
+
+                    else -> "Falha no ping para $host. Código de saída: $exitCode"
                 }
-            } else {
-                "Não foi possível alcançar o host $host. Código de saída: $exitCode"
+                exitCode == 2 -> "Erro: O endereço do host parece estar incorreto."
+                else -> "Falha desconhecida no ping para $host. Código de saída: $exitCode"
             }
         } catch (e: Exception) {
             "Erro ao realizar o ping: ${e.message}"
@@ -159,132 +188,153 @@ suspend fun testPing(host: String, context: Context): String {
     }
 }
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectivityTestScreen(context: Context) {
-    var url by remember { mutableStateOf(TextFieldValue()) }
+    var url by remember { mutableStateOf("") }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
-    var resultMessage by remember { mutableStateOf("") }
-    var connectionStatus by remember { mutableStateOf("") }
-    var pingStatus by remember { mutableStateOf("") }
-    var isTCPLoading by remember { mutableStateOf(false) }
-    var isPINGLoading by remember { mutableStateOf(false) }
+    var httpResult by remember { mutableStateOf("") }
+    var tcpResult by remember { mutableStateOf("") }
+    var pingResult by remember { mutableStateOf("") }
+    var isHttpLoading by remember { mutableStateOf(false) }
+    var isTcpLoading by remember { mutableStateOf(false) }
+    var isPingLoading by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text("Teste de Conectividade")
+    val coroutineScope = rememberCoroutineScope()
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Campo de entrada para URL (HTTP)
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text("Digite a URL (HTTP)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Botão para testar HTTP
-        val coroutineScope = rememberCoroutineScope()
-
-        Button(
-            onClick = {
-                // Iniciar a operação de teste HTTP dentro de uma corrotina
-                coroutineScope.launch {
-                    resultMessage = testHttpConnectivity(url.text)
-                }
-            }
-        ) {
-            Text("Testar Conexão HTTP")
-        }
-
-        Text(resultMessage)
-
-        // Campo de entrada para o Host
-        OutlinedTextField(
-            value = host,
-            onValueChange = { host = it },
-            label = { Text("Digite o Host") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Campo de entrada para a Porta (TCP)
-        OutlinedTextField(
-            value = port,
-            onValueChange = { port = it },
-            label = { Text("Digite a Porta (TCP)") },
-            modifier = Modifier.fillMaxWidth(),
-            isError = port.isEmpty(), // Mostra um erro visual se estiver vazio
-            //keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-        )
-
-        // Exibindo a mensagem de erro se a porta estiver vazia
-        if (port.isEmpty()) {
-            Text(
-                text = "Determine a porta.",
-                //color = MaterialTheme.colors.error,
-                //style = MaterialTheme.typography.body2
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Teste de Conectividade") }
             )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Botão para testar a conexão TCP
-        Button(
-            onClick = {
-                // Dentro de uma corrotina
-                coroutineScope.launch {
-                    isTCPLoading = true
-                    if (port.isNotEmpty()) {
-                        connectionStatus = testTcpConnectivity(host, port)
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                ConnectivityCard(title = "Teste HTTP") {
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = { Text("Digite a URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isHttpLoading = true
+                                httpResult = testHttpConnectivity(url)
+                                isHttpLoading = false
+                            }
+                        },
+                        enabled = url.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isHttpLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Testar HTTP")
                     }
-                    isTCPLoading = false
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = port.isNotEmpty() // Desabilita o botão se a porta estiver vazia
-        ) {
-            Text("Testar Conexão TCP")
-        }
-        // Exibe o status da conexão
-        if (isTCPLoading) {
-            CircularProgressIndicator()
-        } else {
-            Text(
-                text = connectionStatus,
-                //style = MaterialTheme.typography.h6
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Botão para testar Ping
-        Button(
-            onClick = {
-                coroutineScope.launch {
-                    isPINGLoading = true
-                    pingStatus = testPing(host, context)
-                    isPINGLoading = false
+                    Text(httpResult, Modifier.padding(top = 8.dp))
                 }
             }
-        ) {
-            Text("Testar Ping")
+
+            item {
+                ConnectivityCard(title = "Teste TCP") {
+                    OutlinedTextField(
+                        value = host,
+                        onValueChange = { host = it },
+                        label = { Text("Digite o Host") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = port,
+                        onValueChange = { port = it },
+                        label = { Text("Digite a Porta") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isTcpLoading = true
+                                tcpResult = testTcpConnectivity(host, port)
+                                isTcpLoading = false
+                            }
+                        },
+                        enabled = host.isNotEmpty() && port.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isTcpLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Testar TCP")
+                    }
+                    Text(tcpResult, Modifier.padding(top = 8.dp))
+                }
+            }
+
+            item {
+                ConnectivityCard(title = "Teste de Ping") {
+                    OutlinedTextField(
+                        value = host,
+                        onValueChange = { host = it },
+                        label = { Text("Digite o Host") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isPingLoading = true
+                                pingResult = testPing(host, context)
+                                isPingLoading = false
+                            }
+                        },
+                        enabled = host.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isPingLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text("Testar Ping")
+                    }
+                    Text(pingResult, Modifier.padding(top = 8.dp))
+                }
+            }
         }
-        if (isPINGLoading) {
-            CircularProgressIndicator()
-        } else {
-            Text(
-                text = pingStatus
-                //style = MaterialTheme.typography.h6
-            )
+    }
+}
+
+@Composable
+fun ConnectivityCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            content()
         }
     }
 }

@@ -60,7 +60,7 @@ fun MainScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Monitor de Rede") }) }
+        topBar = { TopAppBar(title = { Text("Detetive da Rede") }) }
     ) { padding ->
         Column(
             modifier = Modifier

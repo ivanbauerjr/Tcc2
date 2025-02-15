@@ -53,9 +53,8 @@ class WifiListActivity : ComponentActivity() {
 fun getSignalStrengthColor(rssi: Int): Color {
     return when {
         rssi > -50 -> Color.Green              // Ótima
-        rssi > -60 -> Color(0xFF66BB6A)  // Boa (verde mais claro)
-        rssi > -70 -> Color(0xFFDAA520)  // Moderada
-        rssi > -80 -> Color(0xFFFFA500)  // Fraca (Laranja)
+        rssi > -70 -> Color(0xFF66BB6A)  // Boa (verde mais claro)
+        rssi > -90 -> Color(0xFFFFA500)  // Fraca (Laranja)
         else -> Color.Red                     // Muito fraca
     }
 }

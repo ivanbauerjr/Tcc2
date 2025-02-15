@@ -25,6 +25,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
+import kotlin.math.abs
 import androidx.compose.ui.graphics.vector.ImageVector
 
 data class NetworkDiagnosticsResult(
@@ -244,19 +245,17 @@ fun NetworkDiagnosticsScreen(navController: NavController) {
     }
 }
 
-
 suspend fun analyzeUnstableConnection(): String {
     return withContext(Dispatchers.IO) {
         val host = "8.8.8.8"
-        val pingCount = 10
+        val pingCount = 20 // Aumentar para capturar variações melhor
         val responseTimes = mutableListOf<Long>()
         var packetLoss = 0
 
         try {
             for (i in 1..pingCount) {
                 val startTime = System.currentTimeMillis()
-
-                val process = Runtime.getRuntime().exec("ping -c 1 -s 32 $host") // Ping com pacote pequeno (32 bytes)
+                val process = Runtime.getRuntime().exec("ping -c 1 -s 32 $host")
                 val exitCode = process.waitFor()
                 val elapsedTime = System.currentTimeMillis() - startTime
 
@@ -266,19 +265,21 @@ suspend fun analyzeUnstableConnection(): String {
                     packetLoss++
                 }
 
-                delay(500)  // Pequeno intervalo entre pings
+                delay(300) // Redução do intervalo entre pings para capturar flutuações
             }
 
             if (responseTimes.isEmpty()) {
                 return@withContext "Erro ao coletar dados"
             }
 
-            // Cálculo de jitter (diferença entre máximo e mínimo)
-            val jitter = responseTimes.maxOrNull()?.minus(responseTimes.minOrNull() ?: 0) ?: 0
+            val avgLatency = responseTimes.average()
+            val jitter = responseTimes.map { abs(it - avgLatency) }.average()
+            val jitterThreshold = avgLatency * 0.25 // Limiar reduzido para melhor detecção
 
             return@withContext when {
-                packetLoss > 2 -> "Perda de pacotes alta ($packetLoss pacotes perdidos)"
-                jitter > 100 -> "Conexão instável (Jitter alto: ${jitter} ms)"
+                packetLoss > pingCount * 0.15 -> "Perda de pacotes alta ($packetLoss pacotes perdidos)"
+                jitter > jitterThreshold -> "Conexão instável: Variação significativa nos tempos de resposta (Jitter: ${jitter.toInt()} ms)"
+                avgLatency > 200 -> "Conexão lenta: Tempo médio de resposta elevado (${avgLatency.toInt()} ms)"
                 else -> "Conexão estável"
             }
         } catch (e: Exception) {
@@ -292,12 +293,12 @@ suspend fun analyzeNetworkCongestion(): String {
         val host = "8.8.8.8"
         val normalPingTimes = mutableListOf<Long>()
         val largePacketPingTimes = mutableListOf<Long>()
+        val ttlTestResults = mutableListOf<Long>()
 
         try {
-            // Ping normal (56 bytes)
-            for (i in 1..5) {
+            // Ping com pacotes pequenos (56 bytes)
+            for (i in 1..7) {
                 val startTime = System.currentTimeMillis()
-
                 val process = Runtime.getRuntime().exec("ping -c 1 -s 56 $host")
                 val exitCode = process.waitFor()
                 val elapsedTime = System.currentTimeMillis() - startTime
@@ -306,13 +307,12 @@ suspend fun analyzeNetworkCongestion(): String {
                     normalPingTimes.add(elapsedTime)
                 }
 
-                delay(500)
+                delay(300)
             }
 
-            // Ping com pacote grande (1000 bytes)
-            for (i in 1..5) {
+            // Ping com pacotes grandes (1000 bytes)
+            for (i in 1..7) {
                 val startTime = System.currentTimeMillis()
-
                 val process = Runtime.getRuntime().exec("ping -c 1 -s 1000 $host")
                 val exitCode = process.waitFor()
                 val elapsedTime = System.currentTimeMillis() - startTime
@@ -321,7 +321,21 @@ suspend fun analyzeNetworkCongestion(): String {
                     largePacketPingTimes.add(elapsedTime)
                 }
 
-                delay(500)
+                delay(300)
+            }
+
+            // Ping com diferentes valores de TTL
+            for (ttl in 5..30 step 5) {
+                val startTime = System.currentTimeMillis()
+                val process = Runtime.getRuntime().exec("ping -c 1 -s 56 -t $ttl $host")
+                val exitCode = process.waitFor()
+                val elapsedTime = System.currentTimeMillis() - startTime
+
+                if (exitCode == 0) {
+                    ttlTestResults.add(elapsedTime)
+                }
+
+                delay(300)
             }
 
             if (normalPingTimes.isEmpty() || largePacketPingTimes.isEmpty()) {
@@ -331,10 +345,14 @@ suspend fun analyzeNetworkCongestion(): String {
             val avgNormalPing = normalPingTimes.average()
             val avgLargePacketPing = largePacketPingTimes.average()
             val latencyIncrease = avgLargePacketPing - avgNormalPing
+            val congestionThreshold = avgNormalPing * 0.35 // 35% como limite para congestão
+
+            val ttlVariability = ttlTestResults.maxOrNull()?.minus(ttlTestResults.minOrNull() ?: 0) ?: 0
 
             return@withContext when {
-                avgNormalPing > 150 -> "Alta latência detectada (${avgNormalPing.toInt()} ms)"
-                latencyIncrease > 50 -> "Possível congestionamento detectado (Diferença: ${latencyIncrease.toInt()} ms)"
+                avgNormalPing > 180 -> "Possível congestionamento geral: Mesmo pacotes pequenos estão demorando (${avgNormalPing.toInt()} ms)"
+                latencyIncrease > congestionThreshold -> "Possível congestionamento na rede: Atraso maior para pacotes grandes (Diferença: ${latencyIncrease.toInt()} ms)"
+                ttlVariability > 100 -> "Variação na rota detectada: Diferença no tempo de resposta entre diferentes saltos (${ttlVariability} ms)"
                 else -> "Nenhum congestionamento detectado"
             }
         } catch (e: Exception) {
@@ -342,6 +360,7 @@ suspend fun analyzeNetworkCongestion(): String {
         }
     }
 }
+
 
 suspend fun checkRouterStatus(context: Context): String {
     return withContext(Dispatchers.IO) {
@@ -415,9 +434,8 @@ fun getWifiSignalStrength(context: Context): String {
     val rssi = wifiManager.connectionInfo.rssi
     return when {
         rssi > -50 -> "Ótima ($rssi dBm)"
-        rssi > -60 -> "Boa ($rssi dBm)"
-        rssi > -70 -> "Moderada ($rssi dBm)"
-        rssi > -80 -> "Fraca ($rssi dBm)"
+        rssi > -70 -> "Boa ($rssi dBm)"
+        rssi > -90 -> "Fraca ($rssi dBm)"
         else -> "Muito fraca ($rssi dBm)"
     }
 }
@@ -442,7 +460,6 @@ fun extractSignalQuality(signalStrength: String): String {
     return when {
         signalStrength.contains("Ótima", ignoreCase = true) -> "Ótima"
         signalStrength.contains("Boa", ignoreCase = true) -> "Boa"
-        signalStrength.contains("Moderada", ignoreCase = true) -> "Moderada"
         signalStrength.contains("Fraca", ignoreCase = true) -> "Fraca"
         signalStrength.contains("Muito fraca", ignoreCase = true) -> "Muito fraca"
         else -> signalStrength // Se não for identificado, retorna como está
