@@ -32,10 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -64,8 +66,6 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.text.style.TextAlign
 
 
 class ServerManager(context: Context) {
@@ -572,42 +572,50 @@ fun HistoricoVelocidadeScreen(clearFeedback: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Histórico de Testes de Velocidade", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) } // Coloca o SnackbarHost no Scaffold
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .padding(paddingValues) // Garante que não sobreponha a UI
+        ) {
+            Text("Histórico de Testes de Velocidade", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
 
-        Button(onClick = {
-            context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
-            results.value = emptyList() // Atualiza o estado para refletir a remoção dos dados
-            clearFeedback()
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
+            Button(onClick = {
+                context.getSharedPreferences("test_results", Context.MODE_PRIVATE).edit().clear().apply()
+                results.value = emptyList() // Atualiza o estado para refletir a remoção dos dados
+                clearFeedback()
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
+                }
+            }) {
+                Text("Limpar Histórico")
             }
-        }) {
-            Text("Limpar Histórico")
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(results.value.size) { index ->
-                val result = results.value[index]
-                Card(modifier = Modifier.padding(8.dp)) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Text("Data: ${result.timestamp}", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Ping: ${result.ping}", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Download: ${result.downloadSpeed}", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Upload: ${result.uploadSpeed.replace("-", "")}", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Servidor: ${result.serverInfo}", fontSize = 16.sp)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(results.value.size) { index ->
+                    val result = results.value[index]
+                    Card(modifier = Modifier.padding(8.dp)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("Data: ${result.timestamp}", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Ping: ${result.ping}", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Download: ${result.downloadSpeed}", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Upload: ${result.uploadSpeed.replace("-", "")}", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Servidor: ${result.serverInfo}", fontSize = 16.sp)
+                        }
                     }
                 }
             }
         }
-
-        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.CenterHorizontally))
     }
 }
+
 
