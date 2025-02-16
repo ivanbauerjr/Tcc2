@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class WifiListActivity : ComponentActivity() {
@@ -66,24 +68,29 @@ fun RedesProximasScreen() {
     val coroutineScope = rememberCoroutineScope()
     var wifiNetworks by remember { mutableStateOf(emptyList<Triple<String, Int, String>>()) }
     var lastConnectedSignal by remember { mutableStateOf<Int?>(null) }
+    var isLoading by remember { mutableStateOf(false) } // Estado para o loading
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Função para atualizar redes Wi-Fi
     fun updateWifiNetworks() {
         coroutineScope.launch {
+            isLoading = true // Ativa o loading
             try {
+                wifiAnalyzer.analyzeWifiNetworks() // Inicia a varredura
+                kotlinx.coroutines.delay(2000) // Aguarda 2 segundos para garantir que os resultados sejam atualizados
+
                 val newNetworks = wifiAnalyzer.analyzeWifiNetworks().sortedByDescending { it.second }
-                // Obtém a intensidade do sinal da rede conectada
                 val currentConnectedSignal = wifiAnalyzer.getCurrentConnectedSignalStrength()
 
-                // Só atualiza se os valores forem diferentes
                 if (wifiNetworks != newNetworks || lastConnectedSignal != currentConnectedSignal) {
                     wifiNetworks = newNetworks
                     lastConnectedSignal = currentConnectedSignal
-                    snackbarHostState.showSnackbar("Valores atualizados com sucesso!")
                 }
             } catch (e: SecurityException) {
                 snackbarHostState.showSnackbar("Permissão não concedida para acessar redes Wi-Fi")
+            } finally {
+                isLoading = false // Desativa o loading antes de mostrar a mensagem
+                snackbarHostState.showSnackbar("Valores atualizados com sucesso!") // Mostra a mensagem só depois do loading
             }
         }
     }
@@ -127,12 +134,17 @@ fun RedesProximasScreen() {
 
                     Spacer(modifier = Modifier.height(16.dp)) // Espaço entre a lista e o botão
 
+                    if (isLoading) {
+                        CircularProgressIndicator() // Exibe a animação de loading
+                    }
+
                     // Botão centralizado no final
                     Button(
                         onClick = { updateWifiNetworks() },
+                        enabled = !isLoading, // Desativa o botão durante o carregamento
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
-                        Text(text = "Atualizar")
+                        Text(text = if (isLoading) "Atualizando..." else "Atualizar")
                     }
                 }
             }
@@ -176,6 +188,9 @@ class WifiAnalyzer(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun analyzeWifiNetworks(): List<Triple<String, Int, String>> {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+        // Inicia uma nova varredura
+        wifiManager.startScan()
 
         if (wifiManager.scanResults.isEmpty()) {
             throw SecurityException("Acesso a redes Wi-Fi não permitido")
