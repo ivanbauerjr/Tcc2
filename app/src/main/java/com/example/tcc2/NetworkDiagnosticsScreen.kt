@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import kotlin.math.abs
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.sp
 
 data class NetworkDiagnosticsResult(
     val timestamp: String,
@@ -520,23 +521,25 @@ fun NetworkDiagnosticsHistoryScreen() {
     val context = LocalContext.current
     val historyManager = remember { NetworkDiagnosticsHistoryManager(context) }
     var history by remember { mutableStateOf(historyManager.getHistory()) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Histórico de Diagnóstico") }) }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) } // Coloca o SnackbarHost no Scaffold
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(16.dp)
+                .padding(paddingValues) // Garante que não sobreponha a UI
         ) {
-            Button(
-                onClick = {
+            Text("Histórico de Diagnóstico", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
+
+            Button(onClick = {
                     coroutineScope.launch {
                         historyManager.clearHistory()
                         history = emptyList()
+                        snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

@@ -210,15 +210,17 @@ fun HistoricoEscaneamentoScreen(viewModel: NetworkScanViewModel = viewModel()) {
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Histórico de Escaneamento") },
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Button(
-                onClick = {
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) } // Coloca o SnackbarHost no Scaffold
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .padding(paddingValues) // Garante que não sobreponha a UI
+        ) {
+            Text("Histórico de Escaneamento", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
+
+            Button(onClick = {
                     viewModel.clearHistory()
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Histórico limpo com sucesso!")
